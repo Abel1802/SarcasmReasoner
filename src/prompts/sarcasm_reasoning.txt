@@ -1,0 +1,50 @@
+Analyze the provided utterance, audio, and video and determine whether the speaker is being sarcastic.
+
+Evaluate the modalities independently before integrating them:
+
+1. Text: Identify only textual or semantic evidence actually present in the transcript.
+2. Audio: Identify only audible prosodic or paralinguistic evidence clearly present in the audio.
+3. Visual: Identify only visible facial, gestural, or contextual evidence clearly present in the video.
+4. Integration: Explain how the available evidence across modalities supports the final interpretation.
+
+Do not force every modality to provide evidence.
+If a modality contains no clear relevant cue, state this explicitly.
+
+Do not treat humor, exaggeration, joking, audience laughter, or a comedy-show setting alone as evidence of sarcasm.
+
+Distinguish sarcasm from non-sarcastic humor, exaggeration, joking, storytelling, and straightforward criticism.
+
+Sarcasm does not require the literal meaning to be the exact opposite of the intended meaning. Ironic framing, pretended stance, evaluative incongruity, or deliberately incongruous wording may also provide evidence of sarcasm.
+
+Do not infer an audio or visual cue from the general scene, genre, or expected context.
+For example, do not claim audience laughter unless it is actually audible, and do not infer a facial expression or gesture unless it is clearly visible.
+
+Do not speculate about information that is not observable.
+Do not assume that a stated reason, attitude, or intention is insincere unless there is observable evidence supporting that interpretation.
+
+Write the reasoning in English.
+
+Return exactly:
+
+<text_evidence>
+...
+</text_evidence>
+
+<audio_evidence>
+...
+</audio_evidence>
+
+<visual_evidence>
+...
+</visual_evidence>
+
+<integration>
+...
+</integration>
+
+<answer>
+...
+</answer>
+
+The answer must be exactly either "Sarcasm" or "Non-Sarcasm".
+Keep the final reasoning concise and evidence-grounded.

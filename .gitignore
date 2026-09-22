@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.env
+.venv/
+venv/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Large outputs
+outputs/
+checkpoints/
+logs/
+wandb/
+
+# Models
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Raw multimodal data
+data/*/raw/
+
+# Third-party framework
+ms-swift/
+
+# Experiment outputs
+/results/
