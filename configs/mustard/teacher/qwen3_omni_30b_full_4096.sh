@@ -30,15 +30,15 @@ export USE_AUDIO_IN_VIDEO=False
 export FORCE_QWENVL_VIDEO_READER=decord
 export FPS_MAX_FRAMES=12
 
-mkdir -p results/mcsd/teacher/logs
+mkdir -p results/mustard/teacher/logs
 
 
 run_split () {
     SPLIT=$1
 
-    DATA="data/mcsd/processed/zero_shot_${SPLIT}.jsonl"
-    OUTPUT="results/mcsd/teacher/qwen3_omni_30b_${SPLIT}.jsonl"
-    LOG="results/mcsd/teacher/logs/qwen3_omni_30b_${SPLIT}.log"
+    DATA="data/mustard/processed/zero_shot_${SPLIT}.jsonl"
+    OUTPUT="results/mustard/teacher/qwen3_omni_30b_${SPLIT}.jsonl"
+    LOG="results/mustard/teacher/logs/qwen3_omni_30b_${SPLIT}.log"
 
     echo "============================================================"
     echo "Running split: ${SPLIT}"
@@ -79,4 +79,4 @@ run_split () {
 
 run_split valid
 run_split test
-# run_split train
+run_split train

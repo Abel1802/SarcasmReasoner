@@ -35,3 +35,4 @@ ms-swift/
 
 # Experiment outputs
 /results/
+/data/*/processed/train_chunks/
