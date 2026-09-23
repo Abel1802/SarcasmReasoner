@@ -17,6 +17,13 @@ Note: the zero_shot data is based on designed prompts(src/prompts/sarcasm_reason
 
 
 ## Step. 2. Teacher reasoning generation
+
+### Greedy decoding
 ```bash
-bash configs/mcsd/teacher/qwen3_omni_30b_smoke.sh
+bash configs/mustard/teacher/qwen3_omni_30b_full_4096.sh
+```
+
+### Diverse sampling
+```bash
+bash configs/mustard/teacher/qwen3_omni_30b_sample_n8.sh
 ```

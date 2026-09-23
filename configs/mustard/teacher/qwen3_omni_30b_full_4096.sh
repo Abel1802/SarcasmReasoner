@@ -5,24 +5,6 @@ set -o pipefail
 MODEL="Qwen/Qwen3-Omni-30B-A3B-Thinking"
 
 # ============================================================
-# Local model cache on the compute node
-# ============================================================
-
-if [ -z "$TMPDIR" ]; then
-    echo "ERROR: TMPDIR is not set. Run this inside a compute job."
-    exit 1
-fi
-
-export MODELSCOPE_CACHE="$TMPDIR/modelscope"
-mkdir -p "$MODELSCOPE_CACHE"
-
-echo "TMPDIR:           $TMPDIR"
-echo "MODELSCOPE_CACHE: $MODELSCOPE_CACHE"
-echo
-
-df -h "$TMPDIR"
-
-# ============================================================
 # Multimodal settings
 # ============================================================
 
