@@ -7,6 +7,10 @@ set -o pipefail
 # ============================================================
 # Generic multimodal SFT evaluation with vLLM
 #
+# Safe video decoding:
+#   - Force Qwen2.5-Omni to use decord
+#   - Force decord.VideoReader(num_threads=1)
+#
 # Usage:
 #
 # bash scripts/evaluation/eval_sft_checkpoint.sh \
@@ -22,6 +26,14 @@ set -o pipefail
 #     greedy \
 #     results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105 \
 #     valid test
+#
+# MCSD example:
+#
+# bash scripts/evaluation/eval_sft_checkpoint.sh \
+#     mcsd \
+#     sft_greedy \
+#     results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228 \
+#     test
 #
 # If split is omitted:
 #     valid test
@@ -65,6 +77,13 @@ MODEL="Qwen/Qwen2.5-Omni-7B"
 
 
 # ============================================================
+# Safe inference wrapper
+# ============================================================
+
+SAFE_INFER="src/evaluation/swift_infer_safe_video.py"
+
+
+# ============================================================
 # Generation
 # ============================================================
 
@@ -84,14 +103,13 @@ SEED=42
 # One H100.
 VLLM_TP=1
 
-# Qwen2.5-Omni 7B easily fits on one H100.
+# Qwen2.5-Omni 7B fits on one H100.
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 
 # Same context budget used elsewhere in the project.
 VLLM_MAX_MODEL_LEN=16384
 
 # Conservative multimodal concurrency.
-# Increase later if throughput benchmarking shows room.
 VLLM_MAX_NUM_SEQS=4
 
 # LoRA r=8, so vLLM default max rank 16 is sufficient.
@@ -108,12 +126,15 @@ export ENABLE_AUDIO_OUTPUT=0
 # Audio is provided separately from the video.
 export USE_AUDIO_IN_VIDEO=False
 
-# Keep preprocessing aligned with teacher/SFT.
+# Keep preprocessing aligned with teacher / SFT / GRPO.
 export FPS_MAX_FRAMES=12
 
 export VIDEO_MAX_PIXELS=50176
 export MAX_PIXELS=1003520
 
+# IMPORTANT:
+# Force Qwen2.5-Omni video preprocessing to use Decord
+# rather than torchvision.
 export FORCE_QWENVL_VIDEO_READER=decord
 
 export TOKENIZERS_PARALLELISM=false
@@ -142,6 +163,24 @@ if [ ! -d "$ADAPTER" ]; then
 fi
 
 
+if [ ! -f "$ADAPTER/adapter_config.json" ]; then
+
+    echo "ERROR: adapter_config.json not found:"
+    echo "  $ADAPTER/adapter_config.json"
+
+    exit 1
+fi
+
+
+if [ ! -f "$SAFE_INFER" ]; then
+
+    echo "ERROR: safe inference wrapper missing:"
+    echo "  $SAFE_INFER"
+
+    exit 1
+fi
+
+
 if [ ! -f \
     "src/evaluation/evaluate_sarcasm_predictions.py" ]; then
 
@@ -151,6 +190,17 @@ if [ ! -f \
     exit 1
 fi
 
+
+# ============================================================
+# Validate safe wrapper syntax
+# ============================================================
+
+python -m py_compile "$SAFE_INFER"
+
+
+# ============================================================
+# Configuration summary
+# ============================================================
 
 echo
 echo "============================================================"
@@ -163,6 +213,10 @@ echo "Adapter:             $ADAPTER"
 echo "Splits:              ${SPLITS[*]}"
 echo
 echo "Inference backend:   vLLM"
+echo "Safe video wrapper:  $SAFE_INFER"
+echo "Video backend:       decord"
+echo "Decord threads:      1 (patched in wrapper)"
+echo
 echo "Temperature:         $TEMPERATURE"
 echo "Max new tokens:      $MAX_NEW_TOKENS"
 echo
@@ -184,6 +238,37 @@ echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-not-set}"
 echo
 
 nvidia-smi
+
+echo
+
+
+# ============================================================
+# Environment information
+# ============================================================
+
+echo "Python:"
+which python
+python --version
+echo
+
+
+python - <<'PY'
+import decord
+import torch
+import swift
+import trl
+
+print("decord:", decord.__version__)
+print("swift:", swift.__version__)
+print("trl:", trl.__version__)
+print("torch:", torch.__version__)
+
+print("CUDA available:", torch.cuda.is_available())
+print("GPU count:", torch.cuda.device_count())
+
+if torch.cuda.is_available():
+    print("GPU:", torch.cuda.get_device_name(0))
+PY
 
 echo
 
@@ -275,17 +360,40 @@ for SPLIT in "${SPLITS[@]}"; do
 
 
     # ========================================================
-    # vLLM inference
+    # vLLM inference with safe Decord wrapper
     #
-    # Important:
+    # IMPORTANT:
     #
-    # - Full original split is evaluated.
-    # - LoRA adapter is loaded directly by vLLM.
-    # - temperature=0 for deterministic classification.
-    # - Each example contains text + audio + video.
+    # Instead of:
+    #
+    #   swift infer ...
+    #
+    # use:
+    #
+    #   python src/evaluation/swift_infer_safe_video.py ...
+    #
+    # The wrapper:
+    #
+    #   1. sets FORCE_QWENVL_VIDEO_READER=decord
+    #   2. patches decord.VideoReader(num_threads=1)
+    #   3. imports Swift only AFTER the patch
+    #   4. calls swift.pipelines.infer_main()
+    #
+    # This avoids the MCSD video decoding failure that can
+    # otherwise fall back to torchvision and produce:
+    #
+    #   KeyError: 'video_fps'
+    #
+    # Evaluation protocol itself remains unchanged:
+    #
+    #   - Full original split
+    #   - LoRA adapter loaded directly
+    #   - vLLM backend
+    #   - temperature=0
+    #   - text + audio + video
     # ========================================================
 
-    swift infer \
+    python "$SAFE_INFER" \
         --model "$MODEL" \
         --adapters "$ADAPTER" \
         \

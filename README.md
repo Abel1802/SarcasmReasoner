@@ -55,9 +55,9 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 #### Inference
 ```bash
 bash scripts/evaluation/eval_sft_checkpoint.sh \
-    mustard \
-    greedy \
-    results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105 \
+    mcsd \
+    sft_greedy \
+    results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228 \
     test
 ```
 
@@ -67,4 +67,19 @@ bash scripts/evaluation/eval_sft_checkpoint.sh \
 #### Base (W/O SFT)
 ```bash
 bash configs/mustard/grpo/base_1gpu.sh
+```
+
+#### greedy (W/ Greedy SFT)
+```bash
+bash configs/mustard/sft/greedy_1gpu.sh
+```
+
+#### best-8 (W/ Best-of-8 SFT)
+```bash
+bash configs/mustard/sft/best_of_8_1gpu.sh
+```
+
+#### diverse-8 (W/ Diverse-8 SFT)
+```bash
+bash configs/mustard/sft/diverse_8_1gpu.sh
 ```
