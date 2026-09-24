@@ -143,11 +143,11 @@ sampling_batch_size() {
             ;;
 
         test)
-            echo 2
+            echo 1
             ;;
 
         train)
-            echo 2
+            echo 1
             ;;
 
         *)
