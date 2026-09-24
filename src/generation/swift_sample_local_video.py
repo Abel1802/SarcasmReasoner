@@ -6,30 +6,73 @@ Sampling wrapper for multimodal sarcasm reasoning.
 Features
 --------
 1. Keeps local video paths for decord.
-2. Accepts the existing zero_shot_*.jsonl files directly.
-3. Adds the gold assistant message internally because `swift sample`
+2. Forces decord to use a single decoding thread by default.
+   This avoids FFmpeg/decord threaded-decoder failures observed
+   for some MCSD H.264 videos.
+3. Accepts the existing zero_shot_*.jsonl files directly.
+4. Adds the gold assistant message internally because `swift sample`
    expects the final message to be an assistant ground truth.
    The assistant gold message is removed BEFORE teacher generation.
-4. Requests token-level log-probabilities from the teacher.
-5. Stores only the mean token log-probability and token count
+5. Requests token-level log-probabilities from the teacher.
+6. Stores only the mean token log-probability and token count
    for each generated trajectory.
-6. Recovers the original dataset source_id from the original ID
+7. Recovers the original dataset source_id from the original ID
    or the audio/video filename.
+8. Explicitly releases large temporary generation objects between
+   sampling batches and asks glibc to return free host memory.
 
 Designed for:
     ms-swift 4.2.2
     vLLM 0.13.0
 """
 
+import ctypes
+import gc
 import json
 import math
 from copy import deepcopy
 from pathlib import Path
 
+import decord
+
 
 # ============================================================
-# 1. Local-video patch
+# 1. Safe decord + local-video patches
 # ============================================================
+
+# IMPORTANT:
+# Patch decord BEFORE importing ms-swift/qwen video utilities.
+#
+# Some MCSD H.264 files fail reproducibly with decord's default
+# threaded FFmpeg decoder:
+#
+#     avcodec_send_packet(...) >= 0
+#     Thread worker: Error sending packet
+#
+# The same files decode correctly with num_threads=1.
+#
+# setdefault() preserves an explicit num_threads value supplied by
+# a caller while making single-threaded decoding the default here.
+
+_original_decord_video_reader = decord.VideoReader
+
+
+def _single_thread_video_reader(*args, **kwargs):
+    kwargs.setdefault("num_threads", 1)
+    return _original_decord_video_reader(
+        *args,
+        **kwargs,
+    )
+
+
+decord.VideoReader = _single_thread_video_reader
+
+print(
+    "[SarcasmReasoner] "
+    "Patched decord.VideoReader: default num_threads=1",
+    flush=True,
+)
+
 
 from swift.model.models import qwen as qwen_module
 
@@ -76,7 +119,46 @@ qwen_module._get_new_read_video_func = (
 
 
 # ============================================================
-# 2. Sampling extensions
+# 2. Host-memory cleanup helper
+# ============================================================
+
+# vLLM responses may contain large token-level logprob objects.
+# Video preprocessing can also temporarily allocate large CPU buffers.
+#
+# CPython may free those Python objects without immediately returning
+# the corresponding heap pages to the operating system. On long
+# sampling jobs this can make Slurm MaxRSS grow over time.
+#
+# We therefore:
+#   1. run Python garbage collection, and
+#   2. on Linux/glibc, call malloc_trim(0) to return free heap pages.
+#
+# This does NOT touch the live vLLM model/engine or generated outputs.
+
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _malloc_trim = getattr(_libc, "malloc_trim", None)
+
+    if _malloc_trim is not None:
+        _malloc_trim.argtypes = [ctypes.c_size_t]
+        _malloc_trim.restype = ctypes.c_int
+
+except Exception:
+    _malloc_trim = None
+
+
+def release_host_memory():
+    gc.collect()
+
+    if _malloc_trim is not None:
+        try:
+            _malloc_trim(0)
+        except Exception:
+            pass
+
+
+# ============================================================
+# 3. Sampling extensions
 # ============================================================
 
 from swift.infer_engine import RequestConfig
@@ -492,9 +574,11 @@ class LogprobVanillaSampler(VanillaSampler):
         # representation.
         # ====================================================
 
-        for row, response in zip(
-            rows,
-            resp_list,
+        for response_idx, (row, response) in enumerate(
+            zip(
+                rows,
+                resp_list,
+            )
         ):
 
             if isinstance(response, Exception):
@@ -567,6 +651,19 @@ class LogprobVanillaSampler(VanillaSampler):
             resp_all.append(
                 result_row
             )
+
+            # Drop the large vLLM response (including token-level
+            # logprob objects) as soon as it has been reduced to the
+            # compact candidate representation above.
+            resp_list[response_idx] = None
+
+        # infer_requests and rows are no longer needed. Explicitly
+        # release them before returning the compact results.
+        del infer_requests
+        del resp_list
+        del rows
+
+        release_host_memory()
 
         return resp_all
 
@@ -694,11 +791,18 @@ class LogprobVanillaSampler(VanillaSampler):
                     + "\n"
                 )
 
+        # At this point all information needed by ms-swift has been
+        # converted to JSONL strings. Drop the intermediate structured
+        # responses and return free host heap pages where possible.
+        del resp_all
+
+        release_host_memory()
+
         return generated
 
 
 # ============================================================
-# 3. Replace ms-swift's default sampler with ours
+# 4. Replace ms-swift's default sampler with ours
 # ============================================================
 
 import swift.pipelines.sampling.sampling as sampling_module
