@@ -275,10 +275,58 @@ def main():
         required=True,
     )
 
+    parser.add_argument(
+        "--split",
+        choices=["train", "valid", "test"],
+        default=None,
+        help=(
+            "Dataset split used in output filenames. "
+            "If omitted, infer from the input filename/path."
+        ),
+    )
+
     args = parser.parse_args()
 
     input_path = Path(args.input)
     output_dir = Path(args.output_dir)
+
+    # --------------------------------------------------------
+    # Determine split
+    #
+    # Explicit --split has priority. Otherwise infer from the
+    # input path so existing commands keep working, e.g.:
+    #
+    #   .../train/qwen3_omni_30b_train_n8.jsonl -> train
+    #   .../valid/qwen3_omni_30b_valid_n8.jsonl -> valid
+    #   .../test/qwen3_omni_30b_test_n8.jsonl   -> test
+    # --------------------------------------------------------
+
+    split = args.split
+
+    if split is None:
+        input_text = str(input_path).lower()
+
+        matches = [
+            name
+            for name in ("train", "valid", "test")
+            if (
+                f"/{name}/" in input_text
+                or f"_{name}_" in input_path.name.lower()
+                or input_path.name.lower().startswith(f"{name}_")
+                or input_path.name.lower().endswith(f"_{name}.jsonl")
+            )
+        ]
+
+        if len(matches) != 1:
+            raise ValueError(
+                "Could not uniquely infer dataset split from input path. "
+                "Please pass --split train|valid|test explicitly.\n"
+                f"input={input_path}"
+            )
+
+        split = matches[0]
+
+    print(f"Detected split: {split}")
 
     output_dir.mkdir(
         parents=True,
@@ -466,12 +514,12 @@ def main():
 
     best_path = (
         output_dir
-        / "sft_best_of_8_train.jsonl"
+        / f"sft_best_of_8_{split}.jsonl"
     )
 
     diverse_path = (
         output_dir
-        / "sft_diverse_8_train.jsonl"
+        / f"sft_diverse_8_{split}.jsonl"
     )
 
     with best_path.open(
@@ -509,6 +557,7 @@ def main():
     # --------------------------------------------------------
 
     stats = {
+        "split": split,
         "raw_trajectories": len(rows),
         "source_inputs": len(groups),
         "sources_with_usable_candidate": (
@@ -529,7 +578,7 @@ def main():
 
     stats_path = (
         output_dir
-        / "sft_sampling_stats.json"
+        / f"sft_sampling_stats_{split}.json"
     )
 
     with stats_path.open(

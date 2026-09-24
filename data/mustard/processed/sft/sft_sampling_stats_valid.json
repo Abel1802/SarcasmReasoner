@@ -1,0 +1,33 @@
+{
+  "split": "valid",
+  "raw_trajectories": 1440,
+  "source_inputs": 180,
+  "sources_with_usable_candidate": 163,
+  "sources_without_usable_candidate": 17,
+  "best_of_8_examples": 163,
+  "diverse_8_examples": 980,
+  "rejections": {
+    "finish_reason": 10,
+    "malformed_structure": 57,
+    "wrong_prediction": 393
+  },
+  "sources_without_candidate": [
+    "2_381_u",
+    "1_S10E09_324_u",
+    "1_5169_u",
+    "1_S10E09_258_u",
+    "1_S12E02_471_u",
+    "1_1666_u",
+    "1_6835_u",
+    "1_S09E19_044_u",
+    "1_3064_u",
+    "1_12320_u",
+    "1_S09E02_386_u",
+    "1_S10E04_082_u",
+    "1_11236_u",
+    "3_S01E03_517_u",
+    "1_S11E11_217_u",
+    "2_583_u",
+    "1_S12E13_088_u"
+  ]
+}

@@ -31,6 +31,15 @@ bash configs/mustard/teacher/qwen3_omni_30b_sample_n8.sh
 ### SFT traning data generation
 ```bash
 python src/data/build_sft_from_greedy.py --input results/mustard/teacher/qwen3_omni_30b_train.jsonl --output data/mustard/processed/sft/greedy_train.jsonl
+python src/data/build_sft_from_greedy.py --input results/mustard/teacher/qwen3_omni_30b_valid.jsonl --output data/mustard/processed/sft/greedy_valid.jsonl
+```
+```bash
+python src/data/build_sft_from_samples.py \
+  --input results/mustard/teacher/sample_n8/train/qwen3_omni_30b_train_n8.jsonl \
+  --output-dir data/mustard/processed/sft
+python src/data/build_sft_from_samples.py \
+  --input results/mustard/teacher/sample_n8/valid/qwen3_omni_30b_valid_n8.jsonl \
+  --output-dir data/mustard/processed/sft
 ```
 
 
