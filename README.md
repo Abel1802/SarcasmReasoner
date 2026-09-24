@@ -28,7 +28,7 @@ bash configs/mustard/teacher/qwen3_omni_30b_full_4096.sh
 bash configs/mustard/teacher/qwen3_omni_30b_sample_n8.sh
 ```
 
-### SFT traning data generation
+### SFT traning data generation (greedy, best-of-8, diverse-8)
 ```bash
 python src/data/build_sft_from_greedy.py --input results/mustard/teacher/qwen3_omni_30b_train.jsonl --output data/mustard/processed/sft/greedy_train.jsonl
 python src/data/build_sft_from_greedy.py --input results/mustard/teacher/qwen3_omni_30b_valid.jsonl --output data/mustard/processed/sft/greedy_valid.jsonl
@@ -48,6 +48,8 @@ python src/data/build_sft_from_samples.py \
 ### Traning
 ```bash
 bash configs/mustard/sft/greedy_1gpu.sh
+bash configs/mustard/sft/best_of_8_1gpu.sh
+bash configs/mustard/sft/diverse_8_1gpu.sh
 ```
 
 ### Inference
