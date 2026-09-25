@@ -443,7 +443,7 @@ mkdir -p "$OUTPUT_DIR"
 # ============================================================
 
 
-swift rlhf \
+python src/training/swift_rlhf_safe_video.py \
     --rlhf_type grpo \
     \
     --model "$MODEL" \
