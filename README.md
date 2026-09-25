@@ -55,9 +55,9 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 #### Inference
 ```bash
 bash scripts/evaluation/eval_sft_checkpoint.sh \
-    mcsd \
-    sft_greedy \
-    results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228 \
+    mustard \
+    sft_best_of_8 \
+    results/mustard/sft/best_of_8/v0-20260924-103030/checkpoint-140 \
     test
 ```
 
@@ -82,4 +82,15 @@ bash configs/mustard/sft/best_of_8_1gpu.sh
 #### diverse-8 (W/ Diverse-8 SFT)
 ```bash
 bash configs/mustard/sft/diverse_8_1gpu.sh
+```
+
+## Step 5. Reward Model data building
+
+#### build judge pool
+```bash
+python src/data/build_genrm_judge_pool.py \
+  --input results/mustard/teacher/sample_n8/train/qwen3_omni_30b_train_n8.jsonl \
+  --output data/mustard/processed/genrm/judge_pool_raw.jsonl \
+  --stats data/mustard/processed/genrm/judge_pool_raw.stats.json \
+  --strict-expected
 ```

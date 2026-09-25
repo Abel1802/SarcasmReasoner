@@ -1,0 +1,37 @@
+{
+  "raw_trajectories": 6728,
+  "raw_unique_sources": 841,
+  "kept_format_valid": 6448,
+  "kept_correct": 4447,
+  "kept_incorrect": 2001,
+  "kept_correct_ratio": 0.6896712158808933,
+  "sources_with_judge_candidate": 841,
+  "sources_without_judge_candidate": 0,
+  "candidates_per_retained_source": {
+    "mean": 7.667063020214031,
+    "min": 4,
+    "max": 8
+  },
+  "valid_gold_label_distribution": {
+    "Non-Sarcasm": 3298,
+    "Sarcasm": 3150
+  },
+  "valid_prediction_distribution": {
+    "Non-Sarcasm": 3193,
+    "Sarcasm": 3255
+  },
+  "finish_reason_distribution": {
+    "stop": 6701,
+    "length": 27
+  },
+  "missing_finish_reason": 0,
+  "rejections": {
+    "malformed_structure": 253,
+    "malformed::text_evidence_open_count_2": 220,
+    "malformed::audio_evidence_close_count_0": 13,
+    "finish_reason": 27,
+    "malformed::text_evidence_open_count_3": 14,
+    "malformed::text_evidence_open_count_4": 5,
+    "malformed::text_evidence_open_count_8": 1
+  }
+}
