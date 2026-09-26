@@ -23,9 +23,6 @@ set -o pipefail
 # Train:
 #   1893 source instances
 #
-# Validation:
-#   406 source instances
-#
 # GRPO:
 #   1 epoch
 #   G = 8
@@ -52,7 +49,6 @@ SFT_CKPT="results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228"
 # ============================================================
 
 TRAIN_DATA="data/mcsd/processed/zero_shot_train.jsonl"
-VALID_DATA="data/mcsd/processed/zero_shot_valid.jsonl"
 
 
 # ============================================================
@@ -85,24 +81,6 @@ PER_DEVICE_TRAIN_BATCH_SIZE=1
 GRAD_ACC=8
 
 NUM_GENERATIONS=8
-
-
-# ------------------------------------------------------------
-# Validation batch
-#
-# In ms-swift GRPO:
-# per_device_eval_batch_size refers to completion batch size.
-#
-# Single GPU:
-#   8 completions
-#   = 1 prompt x 8 generations
-# ------------------------------------------------------------
-
-PER_DEVICE_EVAL_BATCH_SIZE=8
-
-NUM_GENERATIONS_EVAL=8
-
-EVAL_STEPS=1000
 
 
 # ------------------------------------------------------------
@@ -179,13 +157,6 @@ if [ ! -f "$TRAIN_DATA" ]; then
 fi
 
 
-if [ ! -f "$VALID_DATA" ]; then
-    echo "ERROR: validation dataset not found:"
-    echo "  $VALID_DATA"
-    exit 1
-fi
-
-
 if [ ! -f "$PLUGIN" ]; then
     echo "ERROR: reward plugin not found:"
     echo "  $PLUGIN"
@@ -212,7 +183,6 @@ fi
 # ============================================================
 
 TRAIN_SIZE=$(wc -l < "$TRAIN_DATA")
-VALID_SIZE=$(wc -l < "$VALID_DATA")
 
 
 echo
@@ -229,10 +199,6 @@ echo "Training data:              $TRAIN_DATA"
 echo "Training sources:           $TRAIN_SIZE"
 echo
 
-echo "Validation data:            $VALID_DATA"
-echo "Validation sources:         $VALID_SIZE"
-echo
-
 echo "GPU count:                  1"
 echo
 
@@ -240,11 +206,6 @@ echo "Train batch / GPU:          $PER_DEVICE_TRAIN_BATCH_SIZE"
 echo "Gradient accumulation:      $GRAD_ACC"
 echo "Generation batch size:      $((PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))"
 echo "Train generations/source:   $NUM_GENERATIONS"
-echo
-
-echo "Eval completion batch:      $PER_DEVICE_EVAL_BATCH_SIZE"
-echo "Eval generations/source:    $NUM_GENERATIONS_EVAL"
-echo "Eval every steps:           $EVAL_STEPS"
 echo
 
 echo "Epochs:                     $NUM_EPOCHS"
@@ -286,21 +247,12 @@ echo
 # ============================================================
 
 EXPECTED_TRAIN_SIZE=1893
-EXPECTED_VALID_SIZE=406
 
 
 if [ "$TRAIN_SIZE" -ne "$EXPECTED_TRAIN_SIZE" ]; then
     echo "ERROR: unexpected MCSD train size."
     echo "Expected: $EXPECTED_TRAIN_SIZE"
     echo "Actual:   $TRAIN_SIZE"
-    exit 1
-fi
-
-
-if [ "$VALID_SIZE" -ne "$EXPECTED_VALID_SIZE" ]; then
-    echo "ERROR: unexpected MCSD validation size."
-    echo "Expected: $EXPECTED_VALID_SIZE"
-    echo "Actual:   $VALID_SIZE"
     exit 1
 fi
 
@@ -323,17 +275,6 @@ if [ $((TRAIN_GENERATION_BATCH % NUM_GENERATIONS)) -ne 0 ]; then
     echo
     echo "Generation batch: $TRAIN_GENERATION_BATCH"
     echo "Num generations:  $NUM_GENERATIONS"
-    exit 1
-fi
-
-
-if [ $((PER_DEVICE_EVAL_BATCH_SIZE % NUM_GENERATIONS_EVAL)) -ne 0 ]; then
-    echo "ERROR:"
-    echo "Evaluation completion batch size must be divisible"
-    echo "by NUM_GENERATIONS_EVAL."
-    echo
-    echo "Eval batch:       $PER_DEVICE_EVAL_BATCH_SIZE"
-    echo "Eval generations: $NUM_GENERATIONS_EVAL"
     exit 1
 fi
 
@@ -430,13 +371,11 @@ mkdir -p "$OUTPUT_DIR"
 #   1 epoch
 #
 # Validation:
-#   406 sources
-#   G_eval=8
-#   every 1000 optimizer steps
+#   disabled during training
 #
 # Checkpoints:
-#   1000
-#   final (1893)
+#   every 200 optimizer steps
+#   retain up to 10 checkpoints
 #
 # Test:
 #   NOT used during training/model selection.
@@ -451,7 +390,6 @@ python src/training/swift_rlhf_safe_video.py \
     --ref_adapters "$SFT_CKPT" \
     \
     --dataset "$TRAIN_DATA" \
-    --val_dataset "$VALID_DATA" \
     --split_dataset_ratio 0 \
     \
     --external_plugins "$PLUGIN" \
@@ -475,9 +413,6 @@ python src/training/swift_rlhf_safe_video.py \
     \
     --num_generations "$NUM_GENERATIONS" \
     \
-    --per_device_eval_batch_size "$PER_DEVICE_EVAL_BATCH_SIZE" \
-    --num_generations_eval "$NUM_GENERATIONS_EVAL" \
-    \
     --temperature "$TEMPERATURE" \
     --top_p "$TOP_P" \
     \
@@ -492,12 +427,11 @@ python src/training/swift_rlhf_safe_video.py \
     \
     --logging_steps 5 \
     \
-    --eval_strategy steps \
-    --eval_steps "$EVAL_STEPS" \
+    --eval_strategy no \
     \
     --save_strategy steps \
-    --save_steps 1000 \
-    --save_total_limit 5 \
+    --save_steps 200 \
+    --save_total_limit 10 \
     \
     --seed "$SEED" \
     --data_seed "$SEED" \
