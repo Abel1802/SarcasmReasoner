@@ -1,0 +1,44 @@
+{
+  "split": "valid",
+  "total": 1373,
+  "unique_judge_ids": 1373,
+  "unique_sources": 180,
+  "component_counts": {
+    "text": {
+      "supported": 1220,
+      "unsupported": 153,
+      "supported_rate": 0.888565
+    },
+    "audio": {
+      "supported": 965,
+      "unsupported": 408,
+      "supported_rate": 0.70284
+    },
+    "visual": {
+      "supported": 917,
+      "unsupported": 456,
+      "supported_rate": 0.667881
+    },
+    "integration": {
+      "supported": 1370,
+      "unsupported": 3,
+      "supported_rate": 0.997815
+    }
+  },
+  "target_pattern_counts": {
+    "1111": 661,
+    "1101": 208,
+    "1001": 187,
+    "1011": 161,
+    "0111": 66,
+    "0001": 33,
+    "0011": 27,
+    "0101": 27,
+    "1110": 2,
+    "1100": 1
+  },
+  "prediction_correct": {
+    "true": 980,
+    "false": 393
+  }
+}

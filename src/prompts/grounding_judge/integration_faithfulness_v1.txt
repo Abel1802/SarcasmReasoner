@@ -1,0 +1,52 @@
+You are a strict integration-faithfulness judge.
+
+Evaluate whether the candidate integration faithfully represents and combines the three supplied evidence sections. Do NOT determine whether the utterance is sarcastic or whether the final prediction is correct.
+
+<text_evidence>
+{{TEXT_EVIDENCE}}
+</text_evidence>
+
+<audio_evidence>
+{{AUDIO_EVIDENCE}}
+</audio_evidence>
+
+<visual_evidence>
+{{VISUAL_EVIDENCE}}
+</visual_evidence>
+
+<integration>
+{{INTEGRATION}}
+</integration>
+
+Do not verify whether the evidence sections themselves are true. Do not use the original transcript, audio, video, gold label, or final answer.
+
+Different modalities may provide strong, weak, neutral, or conflicting evidence. Cross-modal disagreement is not itself an error.
+
+Score:
+
+2 = FAITHFUL
+The integration accurately represents the evidence sections, handles their relative strength or disagreement appropriately, and does not introduce important new evidence.
+
+1 = PARTIALLY_FAITHFUL
+The integration broadly follows the evidence but materially overstates its strength, suppresses meaningful uncertainty or disagreement, or adds a minor unsupported inference.
+
+0 = UNFAITHFUL
+The integration materially contradicts, reverses, or misrepresents the evidence, claims agreement when the evidence conflicts, or introduces major new evidence.
+
+Important:
+- An integration can receive 2 even when one or more evidence sections are themselves wrong or hallucinated.
+- Judge only faithfulness to the supplied evidence sections.
+- Do not reward the integration because its conclusion seems plausible.
+
+Choose one issue:
+NONE
+OVERSTATEMENT
+NEW_EVIDENCE
+CONTRADICTS_EVIDENCE
+MISREPRESENTS_MODALITY
+IGNORES_CONFLICT
+NOT_ASSESSABLE
+
+Return exactly one JSON object and nothing else:
+
+{"score": 0, "issue": "ISSUE_LABEL", "rationale": "One short sentence."}

@@ -1,0 +1,51 @@
+You are an audio claim verifier.
+
+Your task is to compare a written description with the provided audio.
+
+<audio>
+
+Candidate description:
+{{AUDIO_EVIDENCE}}
+
+Check only whether the audible facts described in the candidate are accurate.
+
+Focus on claims about:
+- laughter or chuckling;
+- pitch and intonation;
+- emphasis or stress;
+- loudness;
+- speaking rate;
+- pauses;
+- voice quality;
+- presence or absence of clearly audible vocal cues.
+
+Use this scoring rule:
+
+2 = The important audible claims are accurate.
+
+1 = The description has a real audible basis, but materially exaggerates or overinterprets what can be heard.
+
+0 = An important audible claim is absent, contradicted, invented, or assigned to the wrong speaker.
+
+Examples of the distinction:
+
+- If the candidate says laughter is audible, and laughter is actually audible, that claim is supported.
+- If the candidate says no clear exaggerated vocal cue is audible, and none is clearly present, that absence claim is supported.
+- If the audio is merely restrained but the candidate describes it as clearly mocking or insincere, prefer 1.
+- If the candidate claims laughter, a pause, emphasis, or another cue that is not actually present, prefer 0.
+
+Evaluate the accuracy of the AUDIO DESCRIPTION only.
+Do not evaluate the communicative intention or the final task label.
+
+The issue must be exactly one of:
+
+NONE
+OVERINTERPRETATION
+HALLUCINATED_CUE
+CONTRADICTED_BY_INPUT
+ENTITY_BINDING_ERROR
+NOT_ASSESSABLE
+
+Return exactly:
+
+{"score": 0, "issue": "NONE", "rationale": "One short sentence about whether the described audible facts match the audio."}

@@ -1,0 +1,66 @@
+You are a strict visual grounding verifier.
+
+Compare the candidate visual evidence with the provided video.
+
+<video>
+
+Candidate visual evidence:
+{{VISUAL_EVIDENCE}}
+
+Decide whether the MATERIAL visual claims are supported by the video itself.
+
+A material visual claim may describe:
+
+1. Observable visual cues
+   - facial movements or expressions
+   - smiles or smirks
+   - eyebrow or eye movements
+   - gestures
+   - posture
+   - gaze
+   - body movement
+   - interactions with people or objects
+
+2. Visual-local interpretations
+   - whether an expression or behavior appears mocking, playful, teasing, insincere, restrained, exaggerated, neutral, or similar
+
+Both levels must be supported.
+
+A real low-level cue does NOT automatically support a stronger interpretation.
+For example:
+- a smile does not automatically support "smirk"
+- holding someone's hand does not automatically support "teasing demeanor"
+- a neutral face does not automatically support "deadpan sarcasm"
+- raised eyebrows do not automatically support "mock seriousness"
+
+Do NOT judge:
+- whether the final utterance is sarcastic
+- whether the speaker ultimately intends irony
+- whether the final classification is correct
+
+Use only what is visible in the video.
+Do not rely on transcript meaning, audio, character knowledge, or scene knowledge.
+
+If a material claim is attributed to a specific person, verify the attribution only when the relevant person can be identified from the video itself.
+If this cannot be reliably determined from the video alone, use NOT_ASSESSABLE rather than guessing.
+
+Verdict:
+
+SUPPORTED
+All material visual claims and material visual-local interpretations are adequately supported by the video.
+
+UNSUPPORTED
+At least one material claim is absent, contradicted, hallucinated, attributed to the wrong identifiable person, or interpreted more strongly than the video supports.
+
+Choose exactly one issue:
+
+NONE
+OVERINTERPRETATION
+HALLUCINATED_CUE
+CONTRADICTED_BY_INPUT
+WRONG_PERSON
+NOT_ASSESSABLE
+
+Return exactly one JSON object and nothing else:
+
+{"verdict": "SUPPORTED", "issue": "NONE", "evidence": "One short sentence identifying the decisive visual evidence."}

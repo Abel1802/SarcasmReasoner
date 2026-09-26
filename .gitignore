@@ -37,3 +37,4 @@ ms-swift/
 /results/
 /data/*/processed/train_chunks/
 data/mustard/processed/genrm/judge_pool_raw.jsonl
+genrm_smoke.log

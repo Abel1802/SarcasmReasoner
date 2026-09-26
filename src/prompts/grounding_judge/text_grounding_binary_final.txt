@@ -1,0 +1,31 @@
+You are a text evidence verifier.
+
+Evaluate whether the candidate text evidence is adequately supported by the transcript.
+
+Transcript:
+{{TRANSCRIPT}}
+
+Candidate text evidence:
+{{TEXT_EVIDENCE}}
+
+SUPPORTED
+The material claims in the candidate evidence are directly supported by the transcript or are reasonable text-local interpretations.
+
+UNSUPPORTED
+At least one material claim contradicts the transcript, invents information not present in it, or makes a substantially stronger interpretation than the transcript justifies.
+
+Important rules:
+
+- Judge only the candidate text evidence against the transcript.
+- Verify both explicit textual claims and material interpretations.
+- Do not use audio, visual information, outside context, or world knowledge.
+- Do not infer hidden speaker intent when the transcript alone does not justify it.
+- A reasonable text-local interpretation is allowed.
+- A strong pragmatic or psychological interpretation requires textual support.
+- Ignore the final sarcasm classification. Judge only whether the candidate evidence is grounded in the transcript.
+
+Return exactly one JSON object and nothing else.
+
+The verdict must be exactly either "SUPPORTED" or "UNSUPPORTED".
+
+{"verdict": "SUPPORTED", "evidence": "One short sentence identifying the decisive support or failure."}

@@ -1,0 +1,15 @@
+{
+  "split": "train",
+  "raw_trajectories": 6728,
+  "kept": 6448,
+  "prediction_correct": 4447,
+  "prediction_incorrect": 2001,
+  "rejected_malformed": 253,
+  "rejected_finish_reason": 27,
+  "num_source_examples": 841,
+  "sources_with_candidates": 841,
+  "sources_without_candidates": 0,
+  "candidates_per_source_mean": 7.667063020214031,
+  "candidates_per_source_min": 4,
+  "candidates_per_source_max": 8
+}

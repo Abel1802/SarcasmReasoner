@@ -1,0 +1,44 @@
+You are a strict visual claim verifier.
+
+Compare the candidate description with the video.
+
+<video>
+
+Candidate visual evidence:
+{{VISUAL_EVIDENCE}}
+
+Question:
+
+Are ALL material visual claims in the candidate directly supported by what is visibly shown?
+
+Use exactly one verdict:
+
+SUPPORTED
+All material visual claims are clearly visible, correctly attributed to the relevant person, and do not go beyond what can reasonably be seen.
+
+UNSUPPORTED
+At least one material visual claim is not clearly visible, is attributed to the wrong person, or interprets the visible behavior more strongly than the video supports.
+
+Rules:
+
+- Judge only what is directly visible in the video.
+- Ignore transcript meaning, audio, character knowledge, and scene knowledge.
+- Verify who performs each claimed action or expression. If a claimed behavior belongs to another person, use UNSUPPORTED.
+- Do not treat a real low-level cue as proof of a stronger interpretation.
+- A smile does not automatically support "smirk", "mocking", "teasing", "insincere", or similar interpretations.
+- If a candidate contains both supported and materially unsupported claims, use UNSUPPORTED.
+- Minor wording differences do not matter if the material claim remains visually supported.
+- Absence claims are supported only when the relevant person is sufficiently visible to verify the claimed absence.
+- If your evidence sentence identifies a material unsupported claim, the verdict must be UNSUPPORTED.
+
+Choose exactly one issue:
+
+NONE
+OVERINTERPRETATION
+HALLUCINATED_CUE
+WRONG_PERSON
+NOT_ASSESSABLE
+
+Return exactly one JSON object and nothing else:
+
+{"verdict": "SUPPORTED", "issue": "NONE", "evidence": "One short sentence identifying the decisive visual evidence."}

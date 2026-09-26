@@ -1,0 +1,5 @@
+{"id":"text_test_1","type":"HALLUCINATED_CONTENT","gold":0,"transcript":"I really enjoyed the movie.","text_evidence":"The speaker explicitly says that they hated the movie."}
+{"id":"text_test_2","type":"CONTRADICTED_MEANING","gold":0,"transcript":"I don't want to go.","text_evidence":"The speaker explicitly expresses a desire to go."}
+{"id":"text_test_3","type":"OVERINTERPRETATION","gold":0,"transcript":"Great.","text_evidence":"The word 'Great' unambiguously expresses contempt toward the listener."}
+{"id":"text_test_4","type":"INVENTED_CONTEXT","gold":0,"transcript":"Can you bring a few things?","text_evidence":"The speaker is responding to an earlier insult from the listener."}
+{"id":"text_test_5","type":"SUPPORTED_CONTROL","gold":1,"transcript":"Was that place the sun?","text_evidence":"The utterance asks whether the referenced place was the sun."}

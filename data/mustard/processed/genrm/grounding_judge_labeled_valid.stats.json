@@ -1,0 +1,36 @@
+{
+  "split": "valid",
+  "total": 1373,
+  "component_counts": {
+    "text": {
+      "supported": 1220,
+      "unsupported": 153
+    },
+    "audio": {
+      "supported": 965,
+      "unsupported": 408
+    },
+    "visual": {
+      "supported": 917,
+      "unsupported": 456
+    },
+    "integration": {
+      "supported": 1370,
+      "unsupported": 3
+    }
+  },
+  "grounding_sum_counts": {
+    "1": 33,
+    "2": 242,
+    "3": 437,
+    "4": 661
+  },
+  "all_grounded": {
+    "true": 661,
+    "false": 712
+  },
+  "prediction_correct": {
+    "true": 980,
+    "false": 393
+  }
+}

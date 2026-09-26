@@ -1,0 +1,15 @@
+{
+  "split": "valid",
+  "raw_trajectories": 1440,
+  "kept": 1373,
+  "prediction_incorrect": 393,
+  "prediction_correct": 980,
+  "rejected_malformed": 57,
+  "rejected_finish_reason": 10,
+  "num_source_examples": 180,
+  "sources_with_candidates": 180,
+  "sources_without_candidates": 0,
+  "candidates_per_source_mean": 7.627777777777778,
+  "candidates_per_source_min": 4,
+  "candidates_per_source_max": 8
+}

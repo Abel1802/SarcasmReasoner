@@ -84,13 +84,5 @@ bash configs/mustard/sft/best_of_8_1gpu.sh
 bash configs/mustard/sft/diverse_8_1gpu.sh
 ```
 
-## Step 5. Reward Model data building
 
-#### build judge pool
-```bash
-python src/data/build_genrm_judge_pool.py \
-  --input results/mustard/teacher/sample_n8/train/qwen3_omni_30b_train_n8.jsonl \
-  --output data/mustard/processed/genrm/judge_pool_raw.jsonl \
-  --stats data/mustard/processed/genrm/judge_pool_raw.stats.json \
-  --strict-expected
-```
+## Step 5. Reward Model data building

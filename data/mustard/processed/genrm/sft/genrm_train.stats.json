@@ -1,0 +1,46 @@
+{
+  "split": "train",
+  "total": 6448,
+  "unique_judge_ids": 6448,
+  "unique_sources": 841,
+  "component_counts": {
+    "text": {
+      "supported": 5769,
+      "unsupported": 679,
+      "supported_rate": 0.894696
+    },
+    "audio": {
+      "supported": 4656,
+      "unsupported": 1792,
+      "supported_rate": 0.722084
+    },
+    "visual": {
+      "supported": 4645,
+      "unsupported": 1803,
+      "supported_rate": 0.720378
+    },
+    "integration": {
+      "supported": 6433,
+      "unsupported": 15,
+      "supported_rate": 0.997674
+    }
+  },
+  "target_pattern_counts": {
+    "1111": 3396,
+    "1101": 857,
+    "1011": 817,
+    "1001": 686,
+    "0111": 259,
+    "0011": 161,
+    "0101": 130,
+    "0001": 127,
+    "1110": 10,
+    "1100": 2,
+    "0110": 2,
+    "1000": 1
+  },
+  "prediction_correct": {
+    "true": 4447,
+    "false": 2001
+  }
+}

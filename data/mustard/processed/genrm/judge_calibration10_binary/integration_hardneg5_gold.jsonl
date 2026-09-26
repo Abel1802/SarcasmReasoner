@@ -1,0 +1,5 @@
+{"judge_id": 907, "source_id": "1_7445_u", "gold_grounded": 0, "gold_verdict": "UNSUPPORTED", "corruption_type": "INVENTED_EVIDENCE"}
+{"judge_id": 144, "source_id": "1_1560_u", "gold_grounded": 0, "gold_verdict": "UNSUPPORTED", "corruption_type": "EVIDENCE_CONTRADICTION"}
+{"judge_id": 333, "source_id": "1_S10E07_069_u", "gold_grounded": 0, "gold_verdict": "UNSUPPORTED", "corruption_type": "MODALITY_MISREPRESENTATION"}
+{"judge_id": 5735, "source_id": "1_1144_u", "gold_grounded": 0, "gold_verdict": "UNSUPPORTED", "corruption_type": "INVENTED_EVIDENCE"}
+{"judge_id": 5918, "source_id": "2_104_u", "gold_grounded": 0, "gold_verdict": "UNSUPPORTED", "corruption_type": "EVIDENCE_CONTRADICTION"}
