@@ -52,12 +52,20 @@ bash configs/mustard/sft/best_of_8_1gpu.sh
 bash configs/mustard/sft/diverse_8_1gpu.sh
 ```
 
-#### Inference
+#### Inference on valid(step200, 400, 600,....)
 ```bash
-bash scripts/evaluation/eval_sft_checkpoint.sh \
+bash scripts/evaluation/eval_all_checkpoints.sh \
     mustard \
-    grporm_greedy \
-    results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
+    grpo_greedy \
+    results/mustard/grpo/greedy/v0-20260924-122118
+```
+
+#### Inference on test
+```bash
+bash scripts/evaluation/eval_checkpoint.sh \
+    mustard \
+    grporm_diverse_8 \
+    results/mustard/grpo_rm/diverse_8/v0-20260926-151025/checkpoint-800 \
     test
 ```
 
@@ -85,7 +93,7 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 ```
 
 
-## Step 5. Reward Model data building
+## Step 5. Reward Model data building and training
 
 ```bash
 python src/data/build_grounding_judge_pool.py
@@ -103,4 +111,22 @@ python src/data/merge_grounding_labels.py
 
 ```bash
 python src/data/build_genrm_sft_data.py
+```
+
+## Step 6. GRPO w/ RM
+
+```bash
+bash configs/mustard/grpo_rm/diverse_8_1gpu.sh
+```
+
+#### Generated reasoning checking(GRPO VS GRPO-RM)
+```bash
+ORDINARY_PRED="results/mustard/evaluation/grpo/greedy/test_predictions.jsonl"
+GENRM_PRED="results/mustard/evaluation/grpo_rm/greedy/test_predictions.jsonl"
+python src/evaluation/compare_reasoning_with_genrm.py \
+  --gold data/mustard/processed/zero_shot_test.jsonl \
+  --ordinary "$ORDINARY_PRED" \
+  --genrm "$GENRM_PRED" \
+  --output results/mustard/reasoning_eval/greedy_ckpt800_genrm_judged.jsonl \
+  --batch-size 4
 ```

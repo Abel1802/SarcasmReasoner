@@ -5,40 +5,88 @@ set -o pipefail
 
 
 # ============================================================
-# Generic multimodal SFT evaluation with vLLM
+# Generic multimodal checkpoint evaluation with vLLM
 #
-# Safe video decoding:
-#   - Force Qwen2.5-Omni to use decord
-#   - Force decord.VideoReader(num_threads=1)
+# Variant format:
+#
+#   sft_<method>
+#   grpo_<method>
+#   grporm_<method>
+#
+# <method> may be any non-empty string.
+#
+#
+# Output hierarchy:
+#
+#   sft_greedy
+#   + checkpoint-105
+#   ->
+#   results/mustard/evaluation/
+#       sft/greedy/greedy_ckpt105/
+#
+#
+#   grpo_best_of_8
+#   + checkpoint-800
+#   ->
+#   results/mustard/evaluation/
+#       grpo/best_of_8/best_of_8_ckpt800/
+#
+#
+#   grporm_diverse_8
+#   + checkpoint-800
+#   ->
+#   results/mustard/evaluation/
+#       grpo_rm/diverse_8/diverse_8_ckpt800/
+#
 #
 # Usage:
 #
-# bash scripts/evaluation/eval_sft_checkpoint.sh \
+# bash scripts/evaluation/eval_checkpoint.sh \
 #     <dataset> \
 #     <variant> \
 #     <adapter_path> \
 #     [split ...]
 #
-# Example:
 #
-# bash scripts/evaluation/eval_sft_checkpoint.sh \
+# Examples
+# ------------------------------------------------------------
+#
+# SFT:
+#
+# bash scripts/evaluation/eval_checkpoint.sh \
 #     mustard \
-#     greedy \
-#     results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105 \
-#     valid test
-#
-# MCSD example:
-#
-# bash scripts/evaluation/eval_sft_checkpoint.sh \
-#     mcsd \
 #     sft_greedy \
-#     results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228 \
+#     results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105 \
 #     test
 #
+#
+# Ordinary GRPO:
+#
+# bash scripts/evaluation/eval_checkpoint.sh \
+#     mustard \
+#     grpo_greedy \
+#     results/mustard/grpo/greedy/v0-20260924-122118/checkpoint-800 \
+#     valid
+#
+#
+# GRPO + GenRM:
+#
+# bash scripts/evaluation/eval_checkpoint.sh \
+#     mustard \
+#     grporm_greedy \
+#     results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
+#     test
+#
+#
 # If split is omitted:
-#     valid test
+#
+#   valid test
 # ============================================================
 
+
+# ============================================================
+# Arguments
+# ============================================================
 
 if [ "$#" -lt 3 ]; then
 
@@ -46,14 +94,15 @@ if [ "$#" -lt 3 ]; then
     echo
     echo "bash $0 <dataset> <variant> <adapter_path> [split ...]"
     echo
+    echo "Variant format:"
+    echo "  sft_<method>"
+    echo "  grpo_<method>"
+    echo "  grporm_<method>"
+    echo
 
     exit 1
 fi
 
-
-# ============================================================
-# Arguments
-# ============================================================
 
 DATASET="$1"
 VARIANT="$2"
@@ -66,6 +115,63 @@ if [ "$#" -eq 0 ]; then
     SPLITS=("valid" "test")
 else
     SPLITS=("$@")
+fi
+
+
+# ============================================================
+# Parse variant
+#
+# Important:
+#
+# The part after the prefix is arbitrary.
+#
+# Examples:
+#
+#   sft_greedy
+#   grpo_best_of_8
+#   grporm_diverse_8
+#   grpo_any_future_method
+# ============================================================
+
+case "$VARIANT" in
+
+    sft_*)
+        FAMILY="sft"
+        METHOD="${VARIANT#sft_}"
+        ;;
+
+    grpo_*)
+        FAMILY="grpo"
+        METHOD="${VARIANT#grpo_}"
+        ;;
+
+    grporm_*)
+        FAMILY="grpo_rm"
+        METHOD="${VARIANT#grporm_}"
+        ;;
+
+    *)
+        echo "ERROR: invalid variant:"
+        echo "  $VARIANT"
+        echo
+        echo "Expected format:"
+        echo "  sft_<method>"
+        echo "  grpo_<method>"
+        echo "  grporm_<method>"
+        echo
+
+        exit 1
+        ;;
+
+esac
+
+
+if [ -z "$METHOD" ]; then
+
+    echo "ERROR: method cannot be empty:"
+    echo "  $VARIANT"
+
+    exit 1
 fi
 
 
@@ -85,9 +191,9 @@ SAFE_INFER="src/evaluation/swift_infer_safe_video.py"
 
 # ============================================================
 # Generation
+#
+# Formal evaluation uses deterministic greedy decoding.
 # ============================================================
-
-# Formal evaluation always uses deterministic greedy decoding.
 
 TEMPERATURE=0
 
@@ -100,19 +206,14 @@ SEED=42
 # vLLM
 # ============================================================
 
-# One H100.
 VLLM_TP=1
 
-# Qwen2.5-Omni 7B fits on one H100.
 VLLM_GPU_MEMORY_UTILIZATION=0.90
 
-# Same context budget used elsewhere in the project.
 VLLM_MAX_MODEL_LEN=16384
 
-# Conservative multimodal concurrency.
 VLLM_MAX_NUM_SEQS=4
 
-# LoRA r=8, so vLLM default max rank 16 is sufficient.
 VLLM_MAX_LORA_RANK=16
 
 
@@ -120,42 +221,25 @@ VLLM_MAX_LORA_RANK=16
 # Multimodal environment
 # ============================================================
 
-# We only generate textual reasoning.
 export ENABLE_AUDIO_OUTPUT=0
 
-# Audio is provided separately from the video.
 export USE_AUDIO_IN_VIDEO=False
 
-# Keep preprocessing aligned with teacher / SFT / GRPO.
 export FPS_MAX_FRAMES=12
 
 export VIDEO_MAX_PIXELS=50176
+
 export MAX_PIXELS=1003520
 
-# IMPORTANT:
-# Force Qwen2.5-Omni video preprocessing to use Decord
-# rather than torchvision.
 export FORCE_QWENVL_VIDEO_READER=decord
 
 export TOKENIZERS_PARALLELISM=false
+
 export PYTHONUNBUFFERED=1
 
 
 # ============================================================
-# Output directory
-# ============================================================
-
-if [[ "$VARIANT" == sft_* ]]; then
-    OUTPUT_DIR="results/${DATASET}/evaluation/sft/${VARIANT#sft_}"
-else
-    OUTPUT_DIR="results/${DATASET}/evaluation/${VARIANT}"
-fi
-
-mkdir -p "$OUTPUT_DIR"
-
-
-# ============================================================
-# Sanity checks
+# Validate adapter
 # ============================================================
 
 if [ ! -d "$ADAPTER" ]; then
@@ -176,6 +260,66 @@ if [ ! -f "$ADAPTER/adapter_config.json" ]; then
 fi
 
 
+# ============================================================
+# Recover checkpoint step
+#
+# Required adapter basename:
+#
+#   checkpoint-105
+#   checkpoint-200
+#   checkpoint-800
+#   ...
+# ============================================================
+
+CKPT_NAME=$(basename "$ADAPTER")
+
+
+if [[ "$CKPT_NAME" =~ ^checkpoint-([0-9]+)$ ]]; then
+
+    STEP="${BASH_REMATCH[1]}"
+
+else
+
+    echo "ERROR: adapter path must end with checkpoint-<step>:"
+    echo "  $ADAPTER"
+    echo
+    echo "Example:"
+    echo "  .../checkpoint-800"
+
+    exit 1
+fi
+
+
+# ============================================================
+# Output directory
+#
+# sft_<method>
+# ->
+# results/<dataset>/evaluation/
+#     sft/<method>/<method>_ckpt<step>
+#
+#
+# grpo_<method>
+# ->
+# results/<dataset>/evaluation/
+#     grpo/<method>/<method>_ckpt<step>
+#
+#
+# grporm_<method>
+# ->
+# results/<dataset>/evaluation/
+#     grpo_rm/<method>/<method>_ckpt<step>
+# ============================================================
+
+OUTPUT_DIR="results/${DATASET}/evaluation/${FAMILY}/${METHOD}/${METHOD}_ckpt${STEP}"
+
+mkdir -p "$OUTPUT_DIR"
+
+
+# ============================================================
+# Other sanity checks
+# ============================================================
+
 if [ ! -f "$SAFE_INFER" ]; then
 
     echo "ERROR: safe inference wrapper missing:"
@@ -185,21 +329,25 @@ if [ ! -f "$SAFE_INFER" ]; then
 fi
 
 
-if [ ! -f \
-    "src/evaluation/evaluate_sarcasm_predictions.py" ]; then
+METRIC_SCRIPT="src/evaluation/evaluate_sarcasm_predictions.py"
+
+
+if [ ! -f "$METRIC_SCRIPT" ]; then
 
     echo "ERROR: metric script missing:"
-    echo "  src/evaluation/evaluate_sarcasm_predictions.py"
+    echo "  $METRIC_SCRIPT"
 
     exit 1
 fi
 
 
 # ============================================================
-# Validate safe wrapper syntax
+# Validate Python syntax
 # ============================================================
 
 python -m py_compile "$SAFE_INFER"
+
+python -m py_compile "$METRIC_SCRIPT"
 
 
 # ============================================================
@@ -212,14 +360,20 @@ echo "Multimodal Sarcasm Evaluation"
 echo "============================================================"
 echo "Dataset:             $DATASET"
 echo "Variant:             $VARIANT"
+echo "Family:              $FAMILY"
+echo "Method:              $METHOD"
+echo "Checkpoint step:     $STEP"
+echo
 echo "Model:               $MODEL"
-echo "Adapter:             $ADAPTER"
+echo "Adapter:"
+echo "  $ADAPTER"
+echo
 echo "Splits:              ${SPLITS[*]}"
 echo
 echo "Inference backend:   vLLM"
 echo "Safe video wrapper:  $SAFE_INFER"
 echo "Video backend:       decord"
-echo "Decord threads:      1 (patched in wrapper)"
+echo "Decord threads:      1"
 echo
 echo "Temperature:         $TEMPERATURE"
 echo "Max new tokens:      $MAX_NEW_TOKENS"
@@ -229,7 +383,8 @@ echo "vLLM max model len:  $VLLM_MAX_MODEL_LEN"
 echo "vLLM max num seqs:   $VLLM_MAX_NUM_SEQS"
 echo "vLLM GPU memory:     $VLLM_GPU_MEMORY_UTILIZATION"
 echo
-echo "Output:              $OUTPUT_DIR"
+echo "Output:"
+echo "  $OUTPUT_DIR"
 echo "============================================================"
 echo
 
@@ -294,14 +449,23 @@ for SPLIT in "${SPLITS[@]}"; do
 
     echo
     echo "============================================================"
-    echo "Evaluating: $DATASET / $VARIANT / $SPLIT"
+    echo "Evaluating checkpoint"
+    echo "============================================================"
+    echo "Dataset:     $DATASET"
+    echo "Family:      $FAMILY"
+    echo "Method:      $METHOD"
+    echo "Checkpoint:  checkpoint-${STEP}"
+    echo "Split:       $SPLIT"
+    echo
+    echo "Output:"
+    echo "  $OUTPUT_DIR"
     echo "============================================================"
     echo
 
 
-    # --------------------------------------------------------
-    # Dataset
-    # --------------------------------------------------------
+    # ========================================================
+    # Validate dataset
+    # ========================================================
 
     if [ ! -f "$GOLD_DATA" ]; then
 
@@ -314,22 +478,27 @@ for SPLIT in "${SPLITS[@]}"; do
 
     GOLD_COUNT=$(wc -l < "$GOLD_DATA")
 
+
     echo "Gold dataset:"
     echo "  $GOLD_DATA"
     echo
+
     echo "Gold examples: $GOLD_COUNT"
     echo
 
 
-    # --------------------------------------------------------
-    # ms-swift appends to an existing result_path.
+    # ========================================================
+    # Existing output protection
     #
-    # Do not accidentally duplicate predictions.
+    # ms-swift may append to result_path.
     #
-    # To intentionally rerun:
+    # Therefore never reuse an existing prediction file
+    # unless OVERWRITE=1 is explicitly supplied.
     #
-    # OVERWRITE=1 bash ...
-    # --------------------------------------------------------
+    # Example:
+    #
+    # OVERWRITE=1 bash scripts/evaluation/eval_checkpoint.sh ...
+    # ========================================================
 
     if [ -f "$PRED_PATH" ]; then
 
@@ -342,6 +511,8 @@ for SPLIT in "${SPLITS[@]}"; do
                 "$PRED_PATH" \
                 "$METRICS_PATH" \
                 "$SCORED_PATH"
+
+            echo
 
         else
 
@@ -364,37 +535,20 @@ for SPLIT in "${SPLITS[@]}"; do
 
 
     # ========================================================
-    # vLLM inference with safe Decord wrapper
+    # vLLM inference
     #
-    # IMPORTANT:
+    # Safe wrapper:
     #
-    # Instead of:
+    #   1. forces Decord
+    #   2. uses num_threads=1
+    #   3. imports Swift after video patching
     #
-    #   swift infer ...
+    # Formal evaluation:
     #
-    # use:
-    #
-    #   python src/evaluation/swift_infer_safe_video.py ...
-    #
-    # The wrapper:
-    #
-    #   1. sets FORCE_QWENVL_VIDEO_READER=decord
-    #   2. patches decord.VideoReader(num_threads=1)
-    #   3. imports Swift only AFTER the patch
-    #   4. calls swift.pipelines.infer_main()
-    #
-    # This avoids the MCSD video decoding failure that can
-    # otherwise fall back to torchvision and produce:
-    #
-    #   KeyError: 'video_fps'
-    #
-    # Evaluation protocol itself remains unchanged:
-    #
-    #   - Full original split
-    #   - LoRA adapter loaded directly
-    #   - vLLM backend
-    #   - temperature=0
+    #   - full original split
     #   - text + audio + video
+    #   - LoRA loaded directly
+    #   - deterministic decoding
     # ========================================================
 
     python "$SAFE_INFER" \
@@ -412,12 +566,16 @@ for SPLIT in "${SPLITS[@]}"; do
         --max_new_tokens "$MAX_NEW_TOKENS" \
         \
         --vllm_tensor_parallel_size "$VLLM_TP" \
+        \
         --vllm_gpu_memory_utilization \
             "$VLLM_GPU_MEMORY_UTILIZATION" \
+        \
         --vllm_max_model_len \
             "$VLLM_MAX_MODEL_LEN" \
+        \
         --vllm_max_num_seqs \
             "$VLLM_MAX_NUM_SEQS" \
+        \
         --vllm_max_lora_rank \
             "$VLLM_MAX_LORA_RANK" \
         \
@@ -425,6 +583,7 @@ for SPLIT in "${SPLITS[@]}"; do
             '{"audio": 1, "video": 1}' \
         \
         --load_from_cache_file false \
+        \
         --dataset_num_proc 1 \
         \
         --seed "$SEED" \
@@ -434,19 +593,25 @@ for SPLIT in "${SPLITS[@]}"; do
 
 
     # ========================================================
-    # Validate result count
+    # Validate output existence
     # ========================================================
 
     if [ ! -f "$PRED_PATH" ]; then
 
         echo
-        echo "ERROR: prediction file was not created."
+        echo "ERROR: prediction file was not created:"
+        echo "  $PRED_PATH"
 
         exit 1
     fi
 
 
+    # ========================================================
+    # Validate number of predictions
+    # ========================================================
+
     PRED_COUNT=$(wc -l < "$PRED_PATH")
+
 
     echo
     echo "Gold count:       $GOLD_COUNT"
@@ -466,11 +631,17 @@ for SPLIT in "${SPLITS[@]}"; do
 
 
     # ========================================================
-    # Accuracy / Macro-P / Macro-R / Macro-F1
+    # Classification metrics
+    #
+    # - Accuracy
+    # - Macro Precision
+    # - Macro Recall
+    # - Macro F1
+    # - class-specific metrics
+    # - confusion matrix
     # ========================================================
 
-    python \
-        src/evaluation/evaluate_sarcasm_predictions.py \
+    python "$METRIC_SCRIPT" \
         --gold "$GOLD_DATA" \
         --pred "$PRED_PATH" \
         --metrics "$METRICS_PATH" \
@@ -479,7 +650,22 @@ for SPLIT in "${SPLITS[@]}"; do
 
     echo
     echo "============================================================"
-    echo "Finished: $SPLIT"
+    echo "Finished"
+    echo "============================================================"
+    echo "Dataset:     $DATASET"
+    echo "Family:      $FAMILY"
+    echo "Method:      $METHOD"
+    echo "Checkpoint:  checkpoint-${STEP}"
+    echo "Split:       $SPLIT"
+    echo
+    echo "Predictions:"
+    echo "  $PRED_PATH"
+    echo
+    echo "Metrics:"
+    echo "  $METRICS_PATH"
+    echo
+    echo "Scored:"
+    echo "  $SCORED_PATH"
     echo "============================================================"
     echo
 
@@ -488,9 +674,13 @@ done
 
 echo
 echo "============================================================"
-echo "All evaluation finished"
+echo "All requested splits finished"
 echo "============================================================"
-echo "Dataset:  $DATASET"
-echo "Variant:  $VARIANT"
-echo "Results:  $OUTPUT_DIR"
+echo "Dataset:     $DATASET"
+echo "Family:      $FAMILY"
+echo "Method:      $METHOD"
+echo "Checkpoint:  checkpoint-${STEP}"
+echo
+echo "Results:"
+echo "  $OUTPUT_DIR"
 echo "============================================================"
