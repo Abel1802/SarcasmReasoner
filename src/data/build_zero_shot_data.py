@@ -46,6 +46,7 @@ def convert_file(dataset, split):
 
             record = {
                 "id": sample["id"],
+                "transcript": sample["text"],
 
                 "messages": [
                     {
