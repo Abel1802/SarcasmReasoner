@@ -86,3 +86,21 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 
 
 ## Step 5. Reward Model data building
+
+```bash
+python src/data/build_grounding_judge_pool.py
+```
+
+```bash
+python src/evaluation/run_text_integration_grounding_full.py
+python src/evaluation/run_audio_grounding_full.py
+python src/evaluation/run_visual_grounding_vllm.py
+```
+
+```bash
+python src/data/merge_grounding_labels.py
+```
+
+```bash
+python src/data/build_genrm_sft_data.py
+```
