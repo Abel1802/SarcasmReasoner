@@ -145,7 +145,11 @@ export PYTHONUNBUFFERED=1
 # Output directory
 # ============================================================
 
-OUTPUT_DIR="results/${DATASET}/evaluation/${VARIANT}"
+if [[ "$VARIANT" == sft_* ]]; then
+    OUTPUT_DIR="results/${DATASET}/evaluation/sft/${VARIANT#sft_}"
+else
+    OUTPUT_DIR="results/${DATASET}/evaluation/${VARIANT}"
+fi
 
 mkdir -p "$OUTPUT_DIR"
 

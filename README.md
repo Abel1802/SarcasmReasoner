@@ -56,8 +56,8 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 ```bash
 bash scripts/evaluation/eval_sft_checkpoint.sh \
     mustard \
-    sft_best_of_8 \
-    results/mustard/sft/best_of_8/v0-20260924-103030/checkpoint-140 \
+    grporm_greedy \
+    results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
     test
 ```
 
