@@ -128,7 +128,7 @@ python src/data/build_genrm_sft_data.py \
 ```
 
 ```bash
-bash configs/mustard/genrm/qwen25_omni_3b_1gpu.sh
+bash configs/mustard/genrm/qwen25_omni_3b_1gpu.sh full
 ```
 
 

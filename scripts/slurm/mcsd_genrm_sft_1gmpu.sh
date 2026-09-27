@@ -23,4 +23,4 @@ module load 2025
 module load CUDA/12.8.0
 source activate ms2
 
-bash configs/mcsd/genrm/qwen25_omni_3b_1gpu.sh
+bash configs/mcsd/genrm/qwen25_omni_3b_1gpu.sh full
