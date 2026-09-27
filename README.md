@@ -64,8 +64,16 @@ bash scripts/evaluation/eval_all_checkpoints.sh \
 ```bash
 bash scripts/evaluation/eval_checkpoint.sh \
     mustard \
-    grporm_diverse_8 \
-    results/mustard/grpo_rm/diverse_8/v0-20260926-151025/checkpoint-800 \
+    grporm_greedy \
+    results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
+    test
+```
+
+```bash
+bash scripts/evaluation/eval_checkpoint_transformers.sh \
+    mustard \
+    grporm_greedy \
+    results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
     test
 ```
 
@@ -96,13 +104,15 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 ## Step 5. Reward Model data building and training
 
 ```bash
-python src/data/build_grounding_judge_pool.py
+python src/data/build_grounding_judge_pool.py \
+    --dataset mustard \
+    --split train
 ```
 
 ```bash
-python src/evaluation/run_text_integration_grounding_full.py
-python src/evaluation/run_audio_grounding_full.py
-python src/evaluation/run_visual_grounding_vllm.py
+python src/evaluation/run_text_integration_grounding_full.py --dataset mcsd --split train
+python src/evaluation/run_audio_grounding_full.py --dataset mcsd --split train
+python src/evaluation/run_visual_grounding_vllm.py --dataset mcsd --split train
 ```
 
 ```bash

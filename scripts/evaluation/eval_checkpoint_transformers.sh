@@ -4,7 +4,13 @@ set -euo pipefail
 
 
 # ============================================================
-# Generic multimodal checkpoint evaluation with vLLM
+# Formal deterministic checkpoint evaluation
+#
+# Backend:
+#   Transformers
+#
+# Intended use:
+#   Final validation / test results for the paper.
 #
 # Variant format:
 #
@@ -12,74 +18,25 @@ set -euo pipefail
 #   grpo_<method>
 #   grporm_<method>
 #
-# <method> may be any non-empty string.
-#
-#
-# Output hierarchy:
-#
-#   sft_greedy
-#   + checkpoint-105
-#   ->
-#   results/mustard/evaluation/
-#       sft/greedy/greedy_ckpt105/
-#
-#
-#   grpo_best_of_8
-#   + checkpoint-800
-#   ->
-#   results/mustard/evaluation/
-#       grpo/best_of_8/best_of_8_ckpt800/
-#
-#
-#   grporm_diverse_8
-#   + checkpoint-800
-#   ->
-#   results/mustard/evaluation/
-#       grpo_rm/diverse_8/diverse_8_ckpt800/
-#
-#
 # Usage:
 #
-# bash scripts/evaluation/eval_checkpoint.sh \
+# bash scripts/evaluation/eval_checkpoint_transformers.sh \
 #     <dataset> \
 #     <variant> \
 #     <adapter_path> \
-#     [split ...]
+#     <split> [split ...]
 #
+# Example:
 #
-# Examples
-# ------------------------------------------------------------
-#
-# SFT:
-#
-# bash scripts/evaluation/eval_checkpoint.sh \
-#     mustard \
-#     sft_greedy \
-#     results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105 \
-#     test
-#
-#
-# Ordinary GRPO:
-#
-# bash scripts/evaluation/eval_checkpoint.sh \
-#     mustard \
-#     grpo_greedy \
-#     results/mustard/grpo/greedy/v0-20260924-122118/checkpoint-800 \
-#     valid
-#
-#
-# GRPO + GenRM:
-#
-# bash scripts/evaluation/eval_checkpoint.sh \
+# bash scripts/evaluation/eval_checkpoint_transformers.sh \
 #     mustard \
 #     grporm_greedy \
 #     results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
 #     test
 #
-#
-# If split is omitted:
-#
-#   valid test
+# IMPORTANT:
+#   split must be explicitly supplied.
+#   This avoids accidentally evaluating TEST.
 # ============================================================
 
 
@@ -87,13 +44,17 @@ set -euo pipefail
 # Arguments
 # ============================================================
 
-if [ "$#" -lt 3 ]; then
+if [ "$#" -lt 4 ]; then
 
     echo "Usage:"
     echo
-    echo "bash $0 <dataset> <variant> <adapter_path> [split ...]"
+    echo "bash $0 \\"
+    echo "  <dataset> \\"
+    echo "  <variant> \\"
+    echo "  <adapter_path> \\"
+    echo "  <split> [split ...]"
     echo
-    echo "Variant format:"
+    echo "Variant:"
     echo "  sft_<method>"
     echo "  grpo_<method>"
     echo "  grporm_<method>"
@@ -109,27 +70,34 @@ ADAPTER="$3"
 
 shift 3
 
+SPLITS=("$@")
 
-if [ "$#" -eq 0 ]; then
-    SPLITS=("valid" "test")
-else
-    SPLITS=("$@")
-fi
+
+# ============================================================
+# Validate splits
+# ============================================================
+
+for SPLIT in "${SPLITS[@]}"; do
+
+    case "$SPLIT" in
+        valid|test)
+            ;;
+        *)
+            echo "ERROR: unsupported split:"
+            echo "  $SPLIT"
+            echo
+            echo "Allowed:"
+            echo "  valid"
+            echo "  test"
+            exit 1
+            ;;
+    esac
+
+done
 
 
 # ============================================================
 # Parse variant
-#
-# Important:
-#
-# The part after the prefix is arbitrary.
-#
-# Examples:
-#
-#   sft_greedy
-#   grpo_best_of_8
-#   grporm_diverse_8
-#   grpo_any_future_method
 # ============================================================
 
 case "$VARIANT" in
@@ -153,12 +121,10 @@ case "$VARIANT" in
         echo "ERROR: invalid variant:"
         echo "  $VARIANT"
         echo
-        echo "Expected format:"
+        echo "Expected:"
         echo "  sft_<method>"
         echo "  grpo_<method>"
         echo "  grporm_<method>"
-        echo
-
         exit 1
         ;;
 
@@ -166,58 +132,32 @@ esac
 
 
 if [ -z "$METHOD" ]; then
-
-    echo "ERROR: method cannot be empty:"
-    echo "  $VARIANT"
-
+    echo "ERROR: method cannot be empty."
     exit 1
 fi
 
 
 # ============================================================
-# Base model
+# Formal evaluation configuration
 # ============================================================
 
 MODEL="Qwen/Qwen2.5-Omni-7B"
 
-
-# ============================================================
-# Safe inference wrapper
-# ============================================================
-
 SAFE_INFER="src/evaluation/swift_infer_safe_video.py"
 
+METRIC_SCRIPT="src/evaluation/evaluate_sarcasm_predictions.py"
 
-# ============================================================
-# Generation
-#
-# Formal evaluation uses deterministic greedy decoding.
-# ============================================================
 
+# Greedy deterministic decoding.
 TEMPERATURE=0
 
 MAX_NEW_TOKENS=4096
 
-SEED=42
+INFER_SEED=42
 
 
-# ============================================================
-# vLLM
-# ============================================================
-
-VLLM_TP=1
-
-VLLM_GPU_MEMORY_UTILIZATION=0.90
-
-VLLM_MAX_MODEL_LEN=16384
-
-# Formal evaluation prioritizes reproducibility over throughput.
-#
-# Process exactly one request at a time. This minimizes variation
-# caused by dynamic batching / request scheduling.
-VLLM_MAX_NUM_SEQS=1
-
-VLLM_MAX_LORA_RANK=16
+# Transformers processes one example at a time.
+MAX_BATCH_SIZE=1
 
 
 # ============================================================
@@ -242,42 +182,22 @@ export PYTHONUNBUFFERED=1
 
 
 # ============================================================
-# Reproducibility / deterministic inference
+# Reproducibility environment
 # ============================================================
 
-# Python hash randomization.
-export PYTHONHASHSEED="$SEED"
+export PYTHONHASHSEED="$INFER_SEED"
 
-# vLLM:
-#
-# 1. Disable V1 multiprocessing so offline scheduling is
-#    deterministic.
-#
-# 2. Enable batch-invariant kernels when supported by the
-#    installed vLLM version / model / hardware.
-#
-# H100 supports the required CUDA hardware capability.
-#
-# If the installed vLLM version does not support batch
-# invariance for this model, the evaluation can be run with:
-#
-#   VLLM_BATCH_INVARIANT=0 bash ...
-#
-export VLLM_ENABLE_V1_MULTIPROCESSING=0
-export VLLM_BATCH_INVARIANT="${VLLM_BATCH_INVARIANT:-1}"
+export OMP_NUM_THREADS=1
 
-# Make supported cuBLAS operations deterministic.
-export CUBLAS_WORKSPACE_CONFIG="${CUBLAS_WORKSPACE_CONFIG:-:4096:8}"
+export MKL_NUM_THREADS=1
 
-# Keep CPU-side preprocessing deterministic and avoid hidden
-# thread-level variation.
-export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
-export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
-export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-1}"
+export NUMEXPR_NUM_THREADS=1
+
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
 
 # ============================================================
-# Validate adapter
+# Validate files
 # ============================================================
 
 if [ ! -d "$ADAPTER" ]; then
@@ -298,15 +218,26 @@ if [ ! -f "$ADAPTER/adapter_config.json" ]; then
 fi
 
 
+if [ ! -f "$SAFE_INFER" ]; then
+
+    echo "ERROR: safe inference wrapper not found:"
+    echo "  $SAFE_INFER"
+
+    exit 1
+fi
+
+
+if [ ! -f "$METRIC_SCRIPT" ]; then
+
+    echo "ERROR: metric script not found:"
+    echo "  $METRIC_SCRIPT"
+
+    exit 1
+fi
+
+
 # ============================================================
 # Recover checkpoint step
-#
-# Required adapter basename:
-#
-#   checkpoint-105
-#   checkpoint-200
-#   checkpoint-800
-#   ...
 # ============================================================
 
 CKPT_NAME=$(basename "$ADAPTER")
@@ -320,67 +251,42 @@ else
 
     echo "ERROR: adapter path must end with checkpoint-<step>:"
     echo "  $ADAPTER"
-    echo
-    echo "Example:"
-    echo "  .../checkpoint-800"
 
     exit 1
 fi
 
 
 # ============================================================
-# Output directory
+# Recover training run name
 #
-# sft_<method>
+# Example:
+#
+# results/.../v0-20260926-125827/checkpoint-800
+#
 # ->
-# results/<dataset>/evaluation/
-#     sft/<method>/<method>_ckpt<step>
 #
+# RUN_NAME=v0-20260926-125827
 #
-# grpo_<method>
-# ->
-# results/<dataset>/evaluation/
-#     grpo/<method>/<method>_ckpt<step>
-#
-#
-# grporm_<method>
-# ->
-# results/<dataset>/evaluation/
-#     grpo_rm/<method>/<method>_ckpt<step>
+# This prevents different training seeds / runs from
+# overwriting one another.
 # ============================================================
 
-OUTPUT_DIR="results/${DATASET}/evaluation/${FAMILY}/${METHOD}/${METHOD}_ckpt${STEP}"
+RUN_DIR=$(dirname "$ADAPTER")
+
+RUN_NAME=$(basename "$RUN_DIR")
+
+
+# ============================================================
+# Output
+# ============================================================
+
+OUTPUT_DIR="results/${DATASET}/evaluation/transformers/${FAMILY}/${METHOD}/${RUN_NAME}/${METHOD}_ckpt${STEP}"
 
 mkdir -p "$OUTPUT_DIR"
 
 
 # ============================================================
-# Other sanity checks
-# ============================================================
-
-if [ ! -f "$SAFE_INFER" ]; then
-
-    echo "ERROR: safe inference wrapper missing:"
-    echo "  $SAFE_INFER"
-
-    exit 1
-fi
-
-
-METRIC_SCRIPT="src/evaluation/evaluate_sarcasm_predictions.py"
-
-
-if [ ! -f "$METRIC_SCRIPT" ]; then
-
-    echo "ERROR: metric script missing:"
-    echo "  $METRIC_SCRIPT"
-
-    exit 1
-fi
-
-
-# ============================================================
-# Validate Python syntax
+# Validate Python
 # ============================================================
 
 python -m py_compile "$SAFE_INFER"
@@ -394,85 +300,73 @@ python -m py_compile "$METRIC_SCRIPT"
 
 echo
 echo "============================================================"
-echo "Multimodal Sarcasm Evaluation"
+echo "Formal Transformers Sarcasm Evaluation"
 echo "============================================================"
+
 echo "Dataset:             $DATASET"
 echo "Variant:             $VARIANT"
 echo "Family:              $FAMILY"
 echo "Method:              $METHOD"
-echo "Checkpoint step:     $STEP"
+
+echo "Training run:        $RUN_NAME"
+echo "Checkpoint:          checkpoint-${STEP}"
+
 echo
 echo "Model:               $MODEL"
+
 echo "Adapter:"
 echo "  $ADAPTER"
+
 echo
 echo "Splits:              ${SPLITS[*]}"
+
 echo
-echo "Inference backend:   vLLM"
-echo "Safe video wrapper:  $SAFE_INFER"
-echo "Video backend:       decord"
-echo "Decord threads:      1"
-echo
+echo "Backend:             transformers"
 echo "Temperature:         $TEMPERATURE"
 echo "Max new tokens:      $MAX_NEW_TOKENS"
-echo "Seed:                $SEED"
+echo "Max batch size:      $MAX_BATCH_SIZE"
+echo "Inference seed:      $INFER_SEED"
+
 echo
-echo "vLLM TP:             $VLLM_TP"
-echo "vLLM max model len:  $VLLM_MAX_MODEL_LEN"
-echo "vLLM max num seqs:   $VLLM_MAX_NUM_SEQS"
-echo "vLLM GPU memory:     $VLLM_GPU_MEMORY_UTILIZATION"
-echo "vLLM attention:      FLASH_ATTN"
-echo
-echo "Reproducibility:"
-echo "  PYTHONHASHSEED:                 $PYTHONHASHSEED"
-echo "  VLLM_ENABLE_V1_MULTIPROCESSING: $VLLM_ENABLE_V1_MULTIPROCESSING"
-echo "  VLLM_BATCH_INVARIANT:            $VLLM_BATCH_INVARIANT"
-echo "  CUBLAS_WORKSPACE_CONFIG:         $CUBLAS_WORKSPACE_CONFIG"
-echo "  OMP_NUM_THREADS:                 $OMP_NUM_THREADS"
+echo "Video backend:       decord"
+echo "Decord threads:      1"
+
 echo
 echo "Output:"
 echo "  $OUTPUT_DIR"
+
 echo "============================================================"
 echo
 
 
 # ============================================================
-# GPU
+# Hardware / environment
 # ============================================================
 
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-not-set}"
 echo
 
 nvidia-smi
-
-echo
-
-
-# ============================================================
-# Environment information
-# ============================================================
-
-echo "Python:"
-which python
-python --version
 echo
 
 
 python - <<'PY'
+import sys
+
 import decord
 import torch
 import swift
-import trl
-import vllm
+import transformers
+
+print("Python:", sys.version.split()[0])
 
 print("decord:", decord.__version__)
 print("swift:", swift.__version__)
-print("trl:", trl.__version__)
+print("transformers:", transformers.__version__)
 print("torch:", torch.__version__)
-print("vllm:", vllm.__version__)
 
+print("CUDA runtime:", torch.version.cuda)
 print("CUDA available:", torch.cuda.is_available())
-print("GPU count:", torch.cuda.device_count())
 
 if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
@@ -482,7 +376,28 @@ echo
 
 
 # ============================================================
-# Run each split
+# Temporary-directory cleanup
+# ============================================================
+
+CURRENT_TMP_DIR=""
+
+
+cleanup() {
+
+    if [ -n "${CURRENT_TMP_DIR:-}" ] \
+       && [ -d "$CURRENT_TMP_DIR" ]; then
+
+        rm -rf "$CURRENT_TMP_DIR"
+
+    fi
+}
+
+
+trap cleanup EXIT
+
+
+# ============================================================
+# Evaluate each explicitly requested split
 # ============================================================
 
 for SPLIT in "${SPLITS[@]}"; do
@@ -495,25 +410,31 @@ for SPLIT in "${SPLITS[@]}"; do
 
     SCORED_PATH="${OUTPUT_DIR}/${SPLIT}_scored.jsonl"
 
+    MANIFEST_PATH="${OUTPUT_DIR}/${SPLIT}_reproducibility.txt"
+
 
     echo
     echo "============================================================"
-    echo "Evaluating checkpoint"
+    echo "Evaluating"
     echo "============================================================"
+
     echo "Dataset:     $DATASET"
     echo "Family:      $FAMILY"
     echo "Method:      $METHOD"
+    echo "Run:         $RUN_NAME"
     echo "Checkpoint:  checkpoint-${STEP}"
     echo "Split:       $SPLIT"
+
     echo
     echo "Output:"
     echo "  $OUTPUT_DIR"
+
     echo "============================================================"
     echo
 
 
     # ========================================================
-    # Validate dataset
+    # Dataset
     # ========================================================
 
     if [ ! -f "$GOLD_DATA" ]; then
@@ -530,139 +451,111 @@ for SPLIT in "${SPLITS[@]}"; do
 
     echo "Gold dataset:"
     echo "  $GOLD_DATA"
-    echo
 
+    echo
     echo "Gold examples: $GOLD_COUNT"
     echo
 
 
     # ========================================================
-    # Existing output protection
+    # Existing-result protection
     #
-    # ms-swift may append to result_path.
-    #
-    # Therefore never reuse an existing prediction file
-    # unless OVERWRITE=1 is explicitly supplied.
-    #
-    # Example:
-    #
-    # OVERWRITE=1 bash scripts/evaluation/eval_checkpoint.sh ...
+    # OVERWRITE=1 permits replacement, but old formal files
+    # remain untouched until the new run has fully succeeded.
     # ========================================================
 
-    if [ -f "$PRED_PATH" ]; then
+    EXISTING=0
 
-        if [ "${OVERWRITE:-0}" = "1" ]; then
+    for FILE in \
+        "$PRED_PATH" \
+        "$METRICS_PATH" \
+        "$SCORED_PATH" \
+        "$MANIFEST_PATH"
+    do
 
-            echo "OVERWRITE=1"
-            echo "Removing old evaluation files..."
-
-            rm -f \
-                "$PRED_PATH" \
-                "$METRICS_PATH" \
-                "$SCORED_PATH"
-
-            echo
-
-        else
-
-            echo "ERROR: prediction file already exists:"
-            echo "  $PRED_PATH"
-            echo
-            echo "To intentionally rerun:"
-            echo
-            echo "OVERWRITE=1 bash $0 \\"
-            echo "  $DATASET \\"
-            echo "  $VARIANT \\"
-            echo "  $ADAPTER \\"
-            echo "  $SPLIT"
-            echo
-
-            exit 1
+        if [ -e "$FILE" ]; then
+            EXISTING=1
         fi
 
-    fi
+    done
 
 
-    # ========================================================
-    # vLLM inference
-    #
-    # Safe wrapper:
-    #
-    #   1. forces Decord
-    #   2. uses num_threads=1
-    #   3. imports Swift after video patching
-    #
-    # Formal evaluation:
-    #
-    #   - full original split
-    #   - text + audio + video
-    #   - LoRA loaded directly
-    #   - deterministic decoding
-    # ========================================================
+    if [ "$EXISTING" -eq 1 ] \
+       && [ "${OVERWRITE:-0}" != "1" ]; then
 
-    python "$SAFE_INFER" \
-        --model "$MODEL" \
-        --adapters "$ADAPTER" \
-        \
-        --val_dataset "$GOLD_DATA" \
-        \
-        --infer_backend vllm \
-        --stream false \
-        \
-        --torch_dtype bfloat16 \
-        \
-        --temperature "$TEMPERATURE" \
-        --max_new_tokens "$MAX_NEW_TOKENS" \
-        \
-        --vllm_tensor_parallel_size "$VLLM_TP" \
-        \
-        --vllm_gpu_memory_utilization \
-            "$VLLM_GPU_MEMORY_UTILIZATION" \
-        \
-        --vllm_max_model_len \
-            "$VLLM_MAX_MODEL_LEN" \
-        \
-        --vllm_max_num_seqs \
-            "$VLLM_MAX_NUM_SEQS" \
-        \
-        --vllm_max_lora_rank \
-            "$VLLM_MAX_LORA_RANK" \
-        \
-        --vllm_engine_kwargs \
-            '{"attention_backend":"FLASH_ATTN"}' \
-        \
-        --vllm_limit_mm_per_prompt \
-            '{"audio": 1, "video": 1}' \
-        \
-        --load_from_cache_file false \
-        \
-        --dataset_num_proc 1 \
-        \
-        --seed "$SEED" \
-        --data_seed "$SEED" \
-        \
-        --result_path "$PRED_PATH"
-
-
-    # ========================================================
-    # Validate output existence
-    # ========================================================
-
-    if [ ! -f "$PRED_PATH" ]; then
-
+        echo "ERROR: formal evaluation output already exists."
         echo
-        echo "ERROR: prediction file was not created:"
-        echo "  $PRED_PATH"
+        echo "Output directory:"
+        echo "  $OUTPUT_DIR"
+        echo
+        echo "To intentionally rerun:"
+        echo
+        echo "OVERWRITE=1 bash $0 \\"
+        echo "  $DATASET \\"
+        echo "  $VARIANT \\"
+        echo "  $ADAPTER \\"
+        echo "  $SPLIT"
 
         exit 1
     fi
 
 
     # ========================================================
-    # Validate number of predictions
+    # Temporary output
+    #
+    # Never destroy a successful existing formal evaluation
+    # before the replacement run has completed.
     # ========================================================
 
-    PRED_COUNT=$(wc -l < "$PRED_PATH")
+    CURRENT_TMP_DIR=$(mktemp -d \
+        "${OUTPUT_DIR}/.${SPLIT}.tmp.XXXXXX")
+
+
+    TMP_PRED="${CURRENT_TMP_DIR}/${SPLIT}_predictions.jsonl"
+
+    TMP_METRICS="${CURRENT_TMP_DIR}/${SPLIT}_metrics.json"
+
+    TMP_SCORED="${CURRENT_TMP_DIR}/${SPLIT}_scored.jsonl"
+
+    TMP_MANIFEST="${CURRENT_TMP_DIR}/${SPLIT}_reproducibility.txt"
+
+
+    # ========================================================
+    # Transformers inference
+    # ========================================================
+
+    python "$SAFE_INFER" \
+        --model "$MODEL" \
+        --adapters "$ADAPTER" \
+        --val_dataset "$GOLD_DATA" \
+        --infer_backend transformers \
+        --stream false \
+        --torch_dtype bfloat16 \
+        --temperature "$TEMPERATURE" \
+        --max_new_tokens "$MAX_NEW_TOKENS" \
+        --max_batch_size "$MAX_BATCH_SIZE" \
+        --load_from_cache_file false \
+        --dataset_num_proc 1 \
+        --seed "$INFER_SEED" \
+        --data_seed "$INFER_SEED" \
+        --result_path "$TMP_PRED"
+
+
+    # ========================================================
+    # Validate generated output
+    # ========================================================
+
+    if [ ! -f "$TMP_PRED" ]; then
+
+        echo
+        echo "ERROR: prediction file was not created:"
+        echo "  $TMP_PRED"
+
+        exit 1
+    fi
+
+
+    PRED_COUNT=$(wc -l < "$TMP_PRED")
 
 
     echo
@@ -684,43 +577,22 @@ for SPLIT in "${SPLITS[@]}"; do
 
     # ========================================================
     # Classification metrics
-    #
-    # - Accuracy
-    # - Macro Precision
-    # - Macro Recall
-    # - Macro F1
-    # - class-specific metrics
-    # - confusion matrix
     # ========================================================
 
     python "$METRIC_SCRIPT" \
         --gold "$GOLD_DATA" \
-        --pred "$PRED_PATH" \
-        --metrics "$METRICS_PATH" \
-        --scored "$SCORED_PATH"
+        --pred "$TMP_PRED" \
+        --metrics "$TMP_METRICS" \
+        --scored "$TMP_SCORED"
 
 
     # ========================================================
     # Reproducibility manifest
-    #
-    # This does not affect inference. It records enough
-    # information to determine whether two evaluation runs
-    # really used the same:
-    #
-    #   checkpoint
-    #   data
-    #   evaluator
-    #   software
-    #   GPU environment
-    #   predictions
-    #
     # ========================================================
-
-    MANIFEST_PATH="${OUTPUT_DIR}/${SPLIT}_reproducibility.txt"
 
     {
         echo "============================================================"
-        echo "Sarcasm evaluation reproducibility manifest"
+        echo "Formal Sarcasm Evaluation Manifest"
         echo "============================================================"
 
         echo "timestamp=$(date --iso-8601=seconds)"
@@ -728,42 +600,49 @@ for SPLIT in "${SPLITS[@]}"; do
 
         echo
         echo "[evaluation]"
+
         echo "dataset=$DATASET"
         echo "variant=$VARIANT"
         echo "family=$FAMILY"
         echo "method=$METHOD"
+        echo "training_run=$RUN_NAME"
         echo "checkpoint_step=$STEP"
         echo "split=$SPLIT"
 
         echo
         echo "[model]"
+
         echo "model=$MODEL"
         echo "adapter=$(readlink -f "$ADAPTER")"
 
         echo
         echo "[generation]"
+
+        echo "backend=transformers"
         echo "temperature=$TEMPERATURE"
         echo "max_new_tokens=$MAX_NEW_TOKENS"
-        echo "seed=$SEED"
+        echo "max_batch_size=$MAX_BATCH_SIZE"
+        echo "inference_seed=$INFER_SEED"
+        echo "torch_dtype=bfloat16"
 
         echo
-        echo "[vllm]"
-        echo "tensor_parallel_size=$VLLM_TP"
-        echo "max_model_len=$VLLM_MAX_MODEL_LEN"
-        echo "max_num_seqs=$VLLM_MAX_NUM_SEQS"
-        echo "gpu_memory_utilization=$VLLM_GPU_MEMORY_UTILIZATION"
-        echo "max_lora_rank=$VLLM_MAX_LORA_RANK"
+        echo "[multimodal]"
+
+        echo "USE_AUDIO_IN_VIDEO=$USE_AUDIO_IN_VIDEO"
+        echo "FPS_MAX_FRAMES=$FPS_MAX_FRAMES"
+        echo "VIDEO_MAX_PIXELS=$VIDEO_MAX_PIXELS"
+        echo "MAX_PIXELS=$MAX_PIXELS"
+        echo "FORCE_QWENVL_VIDEO_READER=$FORCE_QWENVL_VIDEO_READER"
+        echo "decord_threads=1"
 
         echo
-        echo "[environment]"
+        echo "[determinism]"
+
         echo "PYTHONHASHSEED=$PYTHONHASHSEED"
-        echo "VLLM_ENABLE_V1_MULTIPROCESSING=$VLLM_ENABLE_V1_MULTIPROCESSING"
-        echo "VLLM_BATCH_INVARIANT=$VLLM_BATCH_INVARIANT"
         echo "CUBLAS_WORKSPACE_CONFIG=$CUBLAS_WORKSPACE_CONFIG"
         echo "OMP_NUM_THREADS=$OMP_NUM_THREADS"
         echo "MKL_NUM_THREADS=$MKL_NUM_THREADS"
         echo "NUMEXPR_NUM_THREADS=$NUMEXPR_NUM_THREADS"
-        echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-not-set}"
 
         echo
         echo "[software]"
@@ -774,15 +653,13 @@ import sys
 import decord
 import torch
 import swift
-import trl
-import vllm
+import transformers
 
 print(f"python={sys.version.split()[0]}")
 print(f"decord={decord.__version__}")
 print(f"torch={torch.__version__}")
 print(f"swift={swift.__version__}")
-print(f"trl={trl.__version__}")
-print(f"vllm={vllm.__version__}")
+print(f"transformers={transformers.__version__}")
 print(f"cuda_runtime={torch.version.cuda}")
 PYVERSIONS
 
@@ -798,85 +675,135 @@ PYVERSIONS
         echo "[git]"
 
         echo -n "commit="
-        git rev-parse HEAD 2>/dev/null || echo "unknown"
+
+        git rev-parse HEAD \
+            2>/dev/null \
+            || echo "unknown"
 
         echo "working_tree:"
-        git status --short 2>/dev/null || true
+
+        git status --short \
+            2>/dev/null \
+            || true
 
         echo
         echo "[sha256]"
 
         echo -n "gold="
-        sha256sum "$GOLD_DATA" | awk '{print $1}'
+        sha256sum "$GOLD_DATA" \
+            | awk '{print $1}'
 
         echo -n "predictions="
-        sha256sum "$PRED_PATH" | awk '{print $1}'
+        sha256sum "$TMP_PRED" \
+            | awk '{print $1}'
 
         echo -n "metrics="
-        sha256sum "$METRICS_PATH" | awk '{print $1}'
+        sha256sum "$TMP_METRICS" \
+            | awk '{print $1}'
 
         echo -n "scored="
-        sha256sum "$SCORED_PATH" | awk '{print $1}'
+        sha256sum "$TMP_SCORED" \
+            | awk '{print $1}'
 
-        echo -n "eval_script="
-        sha256sum "$0" | awk '{print $1}'
+        echo -n "evaluation_script="
+        sha256sum "$0" \
+            | awk '{print $1}'
 
         echo -n "safe_infer="
-        sha256sum "$SAFE_INFER" | awk '{print $1}'
+        sha256sum "$SAFE_INFER" \
+            | awk '{print $1}'
 
         echo -n "metric_script="
-        sha256sum "$METRIC_SCRIPT" | awk '{print $1}'
+        sha256sum "$METRIC_SCRIPT" \
+            | awk '{print $1}'
 
         echo -n "adapter_config="
-        sha256sum "$ADAPTER/adapter_config.json" | awk '{print $1}'
+        sha256sum "$ADAPTER/adapter_config.json" \
+            | awk '{print $1}'
 
         echo
-        echo "[adapter weights]"
+        echo "[adapter_weights]"
 
         find "$ADAPTER" \
             -maxdepth 1 \
             -type f \
-            \( -name "*.safetensors" -o -name "*.bin" \) \
+            \( \
+                -name "*.safetensors" \
+                -o \
+                -name "*.bin" \
+            \) \
             -print0 \
             | sort -z \
-            | while IFS= read -r -d '' WEIGHT_FILE; do
-                sha256sum "$WEIGHT_FILE"
-            done
+            | while IFS= read -r -d '' WEIGHT_FILE
+        do
+            sha256sum "$WEIGHT_FILE"
+        done
 
         echo
         echo "============================================================"
 
-    } > "$MANIFEST_PATH"
+    } > "$TMP_MANIFEST"
 
 
-    echo
-    echo "Reproducibility manifest:"
-    echo "  $MANIFEST_PATH"
-    echo
+    # ========================================================
+    # Atomic publication of successful result
+    # ========================================================
 
-    echo "Prediction SHA256:"
-    sha256sum "$PRED_PATH"
-    echo
+    mv -f "$TMP_PRED" \
+        "$PRED_PATH"
 
+    mv -f "$TMP_METRICS" \
+        "$METRICS_PATH"
+
+    mv -f "$TMP_SCORED" \
+        "$SCORED_PATH"
+
+    mv -f "$TMP_MANIFEST" \
+        "$MANIFEST_PATH"
+
+
+    rm -rf "$CURRENT_TMP_DIR"
+
+    CURRENT_TMP_DIR=""
+
+
+    # ========================================================
+    # Final summary
+    # ========================================================
 
     echo
     echo "============================================================"
     echo "Finished"
     echo "============================================================"
+
     echo "Dataset:     $DATASET"
     echo "Family:      $FAMILY"
     echo "Method:      $METHOD"
+    echo "Run:         $RUN_NAME"
     echo "Checkpoint:  checkpoint-${STEP}"
     echo "Split:       $SPLIT"
+
     echo
     echo "Predictions:"
     echo "  $PRED_PATH"
+
     echo
     echo "Metrics:"
     echo "  $METRICS_PATH"
+
     echo
     echo "Scored:"
     echo "  $SCORED_PATH"
+
+    echo
+    echo "Manifest:"
+    echo "  $MANIFEST_PATH"
+
+    echo
+    echo "Prediction SHA256:"
+
+    sha256sum "$PRED_PATH"
+
     echo "============================================================"
     echo
 
@@ -885,13 +812,17 @@ done
 
 echo
 echo "============================================================"
-echo "All requested splits finished"
+echo "All requested formal evaluations finished"
 echo "============================================================"
+
 echo "Dataset:     $DATASET"
 echo "Family:      $FAMILY"
 echo "Method:      $METHOD"
+echo "Run:         $RUN_NAME"
 echo "Checkpoint:  checkpoint-${STEP}"
+
 echo
 echo "Results:"
 echo "  $OUTPUT_DIR"
+
 echo "============================================================"
