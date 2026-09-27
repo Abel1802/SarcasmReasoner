@@ -44,7 +44,7 @@ VALID_DATA="data/mustard/processed/sft/greedy_valid.jsonl"
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mustard/sft/greedy"
+OUTPUT_DIR="${OUTPUT_DIR:-results/mustard/sft/greedy}"
 
 
 # ============================================================
@@ -65,7 +65,7 @@ LORA_ALPHA=32
 
 MAX_LENGTH=16384
 
-SEED=42
+SEED="${SEED:-42}"
 
 
 # ============================================================

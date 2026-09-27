@@ -54,7 +54,7 @@ VALID_DATA="data/mustard/processed/sft/sft_best_of_8_valid.jsonl"
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mustard/sft/best_of_8"
+OUTPUT_DIR="${OUTPUT_DIR:-results/mustard/sft/best_of_8}"
 
 
 # ============================================================
@@ -75,7 +75,7 @@ LORA_ALPHA=32
 
 MAX_LENGTH=16384
 
-SEED=42
+SEED="${SEED:-42}"
 
 
 # ============================================================
