@@ -19,6 +19,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--dataset",
+        choices=["mustard", "mcsd"],
+        required=True,
+        help="Dataset to process.",
+    )
+
+    parser.add_argument(
         "--split",
         choices=["train", "valid"],
         required=True,
@@ -80,33 +87,41 @@ def load_labels(path):
 def main():
 
     args = parse_args()
+
+    dataset = args.dataset
     split = args.split
 
     pool_path = Path(
-        "data/mustard/processed/genrm/"
+        f"data/{dataset}/processed/genrm/"
         f"grounding_judge_pool_{split}.jsonl"
     )
 
     label_dir = Path(
-        "results/mustard/genrm/"
+        f"results/{dataset}/genrm/"
         "grounding_judging"
     ) / split
 
     output_path = Path(
-        "data/mustard/processed/genrm/"
+        f"data/{dataset}/processed/genrm/"
         f"grounding_judge_labeled_{split}.jsonl"
     )
 
     stats_path = Path(
-        "data/mustard/processed/genrm/"
+        f"data/{dataset}/processed/genrm/"
         f"grounding_judge_labeled_{split}.stats.json"
     )
 
     print("=" * 80)
     print(
-        f"MERGING GROUNDING LABELS: {split}"
+        f"MERGING GROUNDING LABELS: "
+        f"{dataset} / {split}"
     )
     print("=" * 80)
+
+    print("Dataset:", dataset)
+    print("Split:", split)
+    print("Pool:", pool_path)
+    print("Label dir:", label_dir)
 
     pool = read_jsonl(
         pool_path
@@ -229,7 +244,6 @@ def main():
 
     sum_counts = Counter()
     all_grounded_counts = Counter()
-
     prediction_correct_counts = Counter()
 
     with open(
@@ -245,7 +259,6 @@ def main():
             )
 
             grounding_labels = {}
-
             grounding_judgments = {}
 
             for component in COMPONENTS:
@@ -279,8 +292,6 @@ def main():
                     component
                 ] = grounded
 
-                # Preserve judge explanation
-                # separately for later audit.
                 grounding_judgments[
                     component
                 ] = {
@@ -357,6 +368,9 @@ def main():
     # --------------------------------
 
     stats = {
+        "dataset":
+            dataset,
+
         "split":
             split,
 

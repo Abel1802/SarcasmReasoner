@@ -1,0 +1,46 @@
+{
+  "dataset": "mcsd",
+  "split": "valid",
+  "total": 3192,
+  "unique_judge_ids": 3192,
+  "unique_sources": 406,
+  "component_counts": {
+    "text": {
+      "supported": 3013,
+      "unsupported": 179,
+      "supported_rate": 0.943922
+    },
+    "audio": {
+      "supported": 2344,
+      "unsupported": 848,
+      "supported_rate": 0.734336
+    },
+    "visual": {
+      "supported": 3001,
+      "unsupported": 191,
+      "supported_rate": 0.940163
+    },
+    "integration": {
+      "supported": 3182,
+      "unsupported": 10,
+      "supported_rate": 0.996867
+    }
+  },
+  "target_pattern_counts": {
+    "1111": 2146,
+    "1011": 692,
+    "0111": 94,
+    "1001": 85,
+    "1101": 83,
+    "0011": 60,
+    "0001": 11,
+    "0101": 11,
+    "1110": 6,
+    "0110": 3,
+    "1100": 1
+  },
+  "prediction_correct": {
+    "true": 2101,
+    "false": 1091
+  }
+}

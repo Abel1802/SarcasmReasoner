@@ -1,0 +1,37 @@
+{
+  "dataset": "mcsd",
+  "split": "valid",
+  "total": 3192,
+  "component_counts": {
+    "text": {
+      "supported": 3013,
+      "unsupported": 179
+    },
+    "audio": {
+      "supported": 2344,
+      "unsupported": 848
+    },
+    "visual": {
+      "supported": 3001,
+      "unsupported": 191
+    },
+    "integration": {
+      "supported": 3182,
+      "unsupported": 10
+    }
+  },
+  "grounding_sum_counts": {
+    "1": 11,
+    "2": 160,
+    "3": 875,
+    "4": 2146
+  },
+  "all_grounded": {
+    "true": 2146,
+    "false": 1046
+  },
+  "prediction_correct": {
+    "true": 2101,
+    "false": 1091
+  }
+}

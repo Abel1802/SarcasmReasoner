@@ -1,0 +1,47 @@
+{
+  "dataset": "mcsd",
+  "split": "train",
+  "total": 14916,
+  "unique_judge_ids": 14916,
+  "unique_sources": 1893,
+  "component_counts": {
+    "text": {
+      "supported": 14060,
+      "unsupported": 856,
+      "supported_rate": 0.942612
+    },
+    "audio": {
+      "supported": 11082,
+      "unsupported": 3834,
+      "supported_rate": 0.742961
+    },
+    "visual": {
+      "supported": 13987,
+      "unsupported": 929,
+      "supported_rate": 0.937718
+    },
+    "integration": {
+      "supported": 14855,
+      "unsupported": 61,
+      "supported_rate": 0.99591
+    }
+  },
+  "target_pattern_counts": {
+    "1111": 10178,
+    "1011": 3027,
+    "1001": 431,
+    "0111": 425,
+    "1101": 377,
+    "0011": 298,
+    "0001": 74,
+    "0101": 45,
+    "1110": 41,
+    "0110": 14,
+    "1010": 4,
+    "1100": 2
+  },
+  "prediction_correct": {
+    "true": 9616,
+    "false": 5300
+  }
+}

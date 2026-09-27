@@ -38,6 +38,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--dataset",
+        choices=["mustard", "mcsd"],
+        required=True,
+        help="Dataset to process.",
+    )
+
+    parser.add_argument(
         "--split",
         choices=["train", "valid"],
         required=True,
@@ -519,9 +526,13 @@ def load_video_at_fps(
             in vLLM.
     """
 
+    # MCSD videos can trigger FFmpeg/decord threaded-decoder
+    # errors (avcodec_send_packet ... -11).  Use one decoder
+    # thread for robustness.
     vr = VideoReader(
         str(video_path),
         ctx=cpu(0),
+        num_threads=1,
     )
 
     total_frames = len(vr)
@@ -588,12 +599,30 @@ def load_video_at_fps(
         frame_indices
     )
 
-    frames = (
-        vr.get_batch(
-            frame_indices.tolist()
+    try:
+        frames = (
+            vr.get_batch(
+                frame_indices.tolist()
+            )
+            .asnumpy()
         )
-        .asnumpy()
-    )
+    except Exception:
+        # Some MP4s still fail in get_batch even with a single
+        # decoder thread. Re-open and fetch sampled frames
+        # individually before giving up.
+        vr = VideoReader(
+            str(video_path),
+            ctx=cpu(0),
+            num_threads=1,
+        )
+
+        frames = np.stack(
+            [
+                vr[int(idx)].asnumpy()
+                for idx in frame_indices
+            ],
+            axis=0,
+        )
 
     if frames.ndim != 4:
 
@@ -739,6 +768,7 @@ def build_vllm_requests(
     *,
     source_batch,
     template,
+    dataset,
     split,
     target_fps,
     min_frames,
@@ -784,7 +814,7 @@ def build_vllm_requests(
         # Every trajectory from this source
         # refers to exactly the same video.
         video_uuid = (
-            f"mustard:"
+            f"{dataset}:"
             f"{split}:"
             f"{source_id}"
         )
@@ -1113,13 +1143,14 @@ def main():
 
     args = parse_args()
 
+    dataset = args.dataset
     split = args.split
 
     input_path = (
         args.input
         if args.input is not None
         else Path(
-            "data/mustard/processed/genrm/"
+            f"data/{dataset}/processed/genrm/"
             f"grounding_judge_pool_{split}.jsonl"
         )
     )
@@ -1128,7 +1159,7 @@ def main():
         args.outdir
         if args.outdir is not None
         else Path(
-            "results/mustard/genrm/"
+            f"results/{dataset}/genrm/"
             "grounding_judging/"
             f"{split}"
         )
@@ -1159,6 +1190,11 @@ def main():
     print(
         "Model:",
         MODEL_NAME,
+    )
+
+    print(
+        "Dataset:",
+        dataset,
     )
 
     print(
@@ -1377,6 +1413,7 @@ def main():
                             source_batch
                         ),
                         template=template,
+                        dataset=dataset,
                         split=split,
                         target_fps=(
                             args.fps
@@ -1423,6 +1460,7 @@ def main():
                                     )
                                 ],
                                 template=template,
+                                dataset=dataset,
                                 split=split,
                                 target_fps=(
                                     args.fps

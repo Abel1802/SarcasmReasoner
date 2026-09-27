@@ -26,6 +26,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--dataset",
+        choices=["mustard", "mcsd"],
+        required=True,
+        help="Dataset to process.",
+    )
+
+    parser.add_argument(
         "--split",
         choices=["train", "valid"],
         required=True,
@@ -35,25 +42,25 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_paths(split):
+def get_paths(dataset, split):
 
     teacher_file = Path(
-        "results/mustard/teacher/sample_n8/"
+        f"results/{dataset}/teacher/sample_n8/"
         f"{split}/qwen3_omni_30b_{split}_n8.jsonl"
     )
 
     source_file = Path(
-        "data/mustard/processed/"
+        f"data/{dataset}/processed/"
         f"zero_shot_{split}.jsonl"
     )
 
     output_file = Path(
-        "data/mustard/processed/genrm/"
+        f"data/{dataset}/processed/genrm/"
         f"grounding_judge_pool_{split}.jsonl"
     )
 
     stats_file = Path(
-        "data/mustard/processed/genrm/"
+        f"data/{dataset}/processed/genrm/"
         f"grounding_judge_pool_{split}.stats.json"
     )
 
@@ -237,6 +244,7 @@ def extract_transcript_from_source(row):
 def main():
 
     args = parse_args()
+    dataset = args.dataset
     split = args.split
 
     (
@@ -244,11 +252,11 @@ def main():
         source_file,
         output_file,
         stats_file,
-    ) = get_paths(split)
+    ) = get_paths(dataset, split)
 
     print("=" * 80)
     print(
-        f"BUILDING GROUNDING JUDGE POOL: {split}"
+        f"BUILDING GROUNDING JUDGE POOL: {dataset} / {split}"
     )
     print("=" * 80)
 
@@ -603,6 +611,7 @@ def main():
     )
 
     stats = {
+        "dataset": dataset,
         "split": split,
         **dict(counters),
     }
@@ -661,7 +670,7 @@ def main():
     print()
     print("=" * 80)
     print(
-        f"GROUNDING JUDGE POOL: {split}"
+        f"GROUNDING JUDGE POOL: {dataset} / {split}"
     )
     print("=" * 80)
 

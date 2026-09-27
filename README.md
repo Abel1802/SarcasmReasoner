@@ -116,12 +116,21 @@ python src/evaluation/run_visual_grounding_vllm.py --dataset mcsd --split train
 ```
 
 ```bash
-python src/data/merge_grounding_labels.py
+python src/data/merge_grounding_labels.py \
+    --dataset mcsd \
+    --split train
 ```
 
 ```bash
-python src/data/build_genrm_sft_data.py
+python src/data/build_genrm_sft_data.py \
+    --dataset mcsd \
+    --split train
 ```
+
+```bash
+bash configs/mustard/genrm/qwen25_omni_3b_1gpu.sh
+```
+
 
 ## Step 6. GRPO w/ RM
 

@@ -1,0 +1,16 @@
+{
+  "dataset": "mcsd",
+  "split": "valid",
+  "raw_trajectories": 3248,
+  "kept": 3192,
+  "prediction_correct": 2101,
+  "prediction_incorrect": 1091,
+  "rejected_malformed": 35,
+  "rejected_finish_reason": 21,
+  "num_source_examples": 406,
+  "sources_with_candidates": 406,
+  "sources_without_candidates": 0,
+  "candidates_per_source_mean": 7.862068965517241,
+  "candidates_per_source_min": 1,
+  "candidates_per_source_max": 8
+}

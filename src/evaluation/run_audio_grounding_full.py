@@ -27,6 +27,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--dataset",
+        choices=["mustard", "mcsd"],
+        required=True,
+        help="Dataset to process.",
+    )
+
+    parser.add_argument(
         "--split",
         choices=["train", "valid"],
         required=True,
@@ -53,7 +60,7 @@ def parse_args():
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=4,
+        default=16,
     )
 
     parser.add_argument(
@@ -339,7 +346,7 @@ def generate_batch(
 
     inputs = processor(
         text=chat_texts,
-        audios=waveforms,
+        audio=waveforms,
         sampling_rate=sampling_rate,
         return_tensors="pt",
         padding=True,
@@ -476,13 +483,14 @@ def main():
 
     args = parse_args()
 
+    dataset = args.dataset
     split = args.split
 
     input_path = (
         args.input
         if args.input is not None
         else Path(
-            "data/mustard/processed/genrm/"
+            f"data/{dataset}/processed/genrm/"
             f"grounding_judge_pool_{split}.jsonl"
         )
     )
@@ -491,7 +499,7 @@ def main():
         args.outdir
         if args.outdir is not None
         else Path(
-            "results/mustard/genrm/"
+            f"results/{dataset}/genrm/"
             "grounding_judging/"
             f"{split}"
         )
@@ -511,6 +519,7 @@ def main():
     print("AUDIO GROUNDING JUDGE")
     print("=" * 80)
 
+    print("Dataset:", dataset)
     print("Split:", split)
     print("Input:", input_path)
     print("Output:", output_path)
@@ -585,7 +594,7 @@ def main():
         Qwen2AudioForConditionalGeneration
         .from_pretrained(
             MODEL_NAME,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             device_map="auto",
         )
     )

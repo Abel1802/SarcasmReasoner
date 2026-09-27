@@ -51,6 +51,13 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--dataset",
+        choices=["mustard", "mcsd"],
+        required=True,
+        help="Dataset to process.",
+    )
+
+    parser.add_argument(
         "--split",
         choices=["train", "valid"],
         required=True,
@@ -176,13 +183,14 @@ def main():
 
     args = parse_args()
 
+    dataset = args.dataset
     split = args.split
 
     input_path = (
         args.input
         if args.input is not None
         else Path(
-            "data/mustard/processed/genrm/"
+            f"data/{dataset}/processed/genrm/"
             f"grounding_judge_labeled_{split}.jsonl"
         )
     )
@@ -191,7 +199,7 @@ def main():
         args.output
         if args.output is not None
         else Path(
-            "data/mustard/processed/genrm/sft/"
+            f"data/{dataset}/processed/genrm/sft/"
             f"genrm_{split}.jsonl"
         )
     )
@@ -204,9 +212,15 @@ def main():
 
     print("=" * 80)
     print(
-        f"BUILD GenRM SFT DATA: {split}"
+        f"BUILD GenRM SFT DATA: "
+        f"{dataset} / {split}"
     )
     print("=" * 80)
+
+    print(
+        "Dataset:",
+        dataset,
+    )
 
     print(
         "Input:",
@@ -427,6 +441,9 @@ def main():
             ] += 1
 
     stats = {
+        "dataset":
+            dataset,
+
         "split":
             split,
 
