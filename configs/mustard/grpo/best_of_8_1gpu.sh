@@ -17,7 +17,7 @@ set -o pipefail
 #   841 source instances
 #
 # Validation:
-#   180 source instances
+#   reserved for offline checkpoint evaluation
 #
 # GRPO:
 #   1 epoch
@@ -45,7 +45,6 @@ SFT_CKPT="results/mustard/sft/best_of_8/v0-20260924-103030/checkpoint-140"
 # ============================================================
 
 TRAIN_DATA="data/mustard/processed/zero_shot_train.jsonl"
-VALID_DATA="data/mustard/processed/zero_shot_valid.jsonl"
 
 
 # ============================================================
@@ -76,16 +75,6 @@ NUM_EPOCHS=1
 PER_DEVICE_TRAIN_BATCH_SIZE=1
 GRAD_ACC=8
 NUM_GENERATIONS=8
-
-
-# ------------------------------------------------------------
-# Validation batch
-# ------------------------------------------------------------
-
-PER_DEVICE_EVAL_BATCH_SIZE=8
-NUM_GENERATIONS_EVAL=8
-
-EVAL_STEPS=200
 
 
 # ------------------------------------------------------------
@@ -156,12 +145,6 @@ if [ ! -f "$TRAIN_DATA" ]; then
 fi
 
 
-if [ ! -f "$VALID_DATA" ]; then
-    echo "ERROR: validation dataset not found:"
-    echo "  $VALID_DATA"
-    exit 1
-fi
-
 
 if [ ! -f "$PLUGIN" ]; then
     echo "ERROR: reward plugin not found:"
@@ -189,7 +172,6 @@ fi
 # ============================================================
 
 TRAIN_SIZE=$(wc -l < "$TRAIN_DATA")
-VALID_SIZE=$(wc -l < "$VALID_DATA")
 
 
 echo
@@ -206,10 +188,6 @@ echo "Training data:              $TRAIN_DATA"
 echo "Training sources:           $TRAIN_SIZE"
 echo
 
-echo "Validation data:            $VALID_DATA"
-echo "Validation sources:         $VALID_SIZE"
-echo
-
 echo "GPU count:                  1"
 echo
 
@@ -217,11 +195,6 @@ echo "Train batch / GPU:          $PER_DEVICE_TRAIN_BATCH_SIZE"
 echo "Gradient accumulation:      $GRAD_ACC"
 echo "Generation batch size:      $((PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))"
 echo "Train generations/source:   $NUM_GENERATIONS"
-echo
-
-echo "Eval completion batch:      $PER_DEVICE_EVAL_BATCH_SIZE"
-echo "Eval generations/source:    $NUM_GENERATIONS_EVAL"
-echo "Eval every steps:           $EVAL_STEPS"
 echo
 
 echo "Epochs:                     $NUM_EPOCHS"
@@ -263,7 +236,6 @@ echo
 # ============================================================
 
 EXPECTED_TRAIN_SIZE=841
-EXPECTED_VALID_SIZE=180
 
 
 if [ "$TRAIN_SIZE" -ne "$EXPECTED_TRAIN_SIZE" ]; then
@@ -273,13 +245,6 @@ if [ "$TRAIN_SIZE" -ne "$EXPECTED_TRAIN_SIZE" ]; then
     exit 1
 fi
 
-
-if [ "$VALID_SIZE" -ne "$EXPECTED_VALID_SIZE" ]; then
-    echo "ERROR: unexpected MUStARD++ validation size."
-    echo "Expected: $EXPECTED_VALID_SIZE"
-    echo "Actual:   $VALID_SIZE"
-    exit 1
-fi
 
 
 echo "Dataset size checks passed."
@@ -303,16 +268,6 @@ if [ $((TRAIN_GENERATION_BATCH % NUM_GENERATIONS)) -ne 0 ]; then
     exit 1
 fi
 
-
-if [ $((PER_DEVICE_EVAL_BATCH_SIZE % NUM_GENERATIONS_EVAL)) -ne 0 ]; then
-    echo "ERROR:"
-    echo "Evaluation completion batch size must be divisible"
-    echo "by NUM_GENERATIONS_EVAL."
-    echo
-    echo "Eval batch:       $PER_DEVICE_EVAL_BATCH_SIZE"
-    echo "Eval generations: $NUM_GENERATIONS_EVAL"
-    exit 1
-fi
 
 
 echo "GRPO batch checks passed."
@@ -403,10 +358,7 @@ mkdir -p "$OUTPUT_DIR"
 #   G=8
 #   1 epoch
 #
-# Validation:
-#   180 sources
-#   G_eval=8
-#   every 200 optimizer steps
+# Validation is performed offline on saved checkpoints.
 #
 # Test:
 #   NOT used here.
@@ -421,7 +373,6 @@ swift rlhf \
     --ref_adapters "$SFT_CKPT" \
     \
     --dataset "$TRAIN_DATA" \
-    --val_dataset "$VALID_DATA" \
     --split_dataset_ratio 0 \
     \
     --external_plugins "$PLUGIN" \
@@ -445,8 +396,6 @@ swift rlhf \
     \
     --num_generations "$NUM_GENERATIONS" \
     \
-    --per_device_eval_batch_size "$PER_DEVICE_EVAL_BATCH_SIZE" \
-    --num_generations_eval "$NUM_GENERATIONS_EVAL" \
     \
     --temperature "$TEMPERATURE" \
     --top_p "$TOP_P" \
@@ -462,12 +411,11 @@ swift rlhf \
     \
     --logging_steps 5 \
     \
-    --eval_strategy steps \
-    --eval_steps "$EVAL_STEPS" \
+    --eval_strategy no \
     \
     --save_strategy steps \
     --save_steps 200 \
-    --save_total_limit 5 \
+    --save_total_limit 10 \
     \
     --seed "$SEED" \
     --data_seed "$SEED" \
