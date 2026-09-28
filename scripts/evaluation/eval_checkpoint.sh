@@ -211,11 +211,17 @@ VLLM_GPU_MEMORY_UTILIZATION=0.90
 
 VLLM_MAX_MODEL_LEN=16384
 
-# Formal evaluation prioritizes reproducibility over throughput.
+# vLLM is used for fast exploratory / validation inference.
 #
-# Process exactly one request at a time. This minimizes variation
-# caused by dynamic batching / request scheduling.
-VLLM_MAX_NUM_SEQS=1
+# Final paper evaluation uses the deterministic Transformers
+# evaluator. Therefore vLLM prioritizes throughput here.
+#
+# Default to 4 concurrent sequences on one H100.
+# Can be overridden from the shell, e.g.:
+#
+#   VLLM_MAX_NUM_SEQS=8 bash scripts/evaluation/eval_checkpoint.sh ...
+#
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-16}"
 
 VLLM_MAX_LORA_RANK=16
 
@@ -264,7 +270,7 @@ export PYTHONHASHSEED="$SEED"
 #   VLLM_BATCH_INVARIANT=0 bash ...
 #
 export VLLM_ENABLE_V1_MULTIPROCESSING=0
-export VLLM_BATCH_INVARIANT="${VLLM_BATCH_INVARIANT:-1}"
+export VLLM_BATCH_INVARIANT="${VLLM_BATCH_INVARIANT:-0}"
 
 # Make supported cuBLAS operations deterministic.
 export CUBLAS_WORKSPACE_CONFIG="${CUBLAS_WORKSPACE_CONFIG:-:4096:8}"
