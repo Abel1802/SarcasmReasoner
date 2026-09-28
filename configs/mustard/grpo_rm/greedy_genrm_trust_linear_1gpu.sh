@@ -3,16 +3,16 @@
 set -euo pipefail
 
 MODEL="Qwen/Qwen2.5-Omni-7B"
-SFT_CKPT="results/mustard/sft/diverse_8/v0-20260924-103353/checkpoint-834"
+SFT_CKPT="results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105"
 
 TRAIN_DATA="data/mustard/processed/zero_shot_train.jsonl"
-PLUGIN="src/plugins/sarcasm_grpo_reward_linear.py"
+PLUGIN="src/plugins/sarcasm_grpo_reward_trust_linear_v2.py"
 GENRM_PROMPT="src/prompts/genrm/grounding_genrm_system.txt"
 
 GENRM_MODEL="Qwen/Qwen2.5-Omni-3B"
 GENRM_CKPT="results/mustard/genrm/qwen25_omni_3b/v1-20260926-001310/checkpoint-1000"
 
-OUTPUT_DIR="results/mustard/grpo_rm/diverse_8_linear"
+OUTPUT_DIR="results/mustard/grpo_rm/greedy_genrm_trust_linear"
 
 NUM_EPOCHS=1
 PER_DEVICE_TRAIN_BATCH_SIZE=1
@@ -51,11 +51,39 @@ export PYTHONUNBUFFERED=1
 
 export PYTORCH_ALLOC_CONF=expandable_segments:True
 
-# Grounding schedule: 0 through 10%, linear to full by 40%.
-# The final --reward_weights value sets the maximum coefficient (0.2).
+
+# ============================================================
+# Trust-aware grounding schedule
+# ============================================================
+
+# Must match --num_generations below.
+export GENRM_NUM_GENERATIONS="$NUM_GENERATIONS"
+
+# Keep exactly the same schedule as the previous linear run:
+#   0%--10%: GenRM OFF
+#   10%--40%: linear ramp 0 -> 1
+#   40%--100%: full scheduled factor
+#
+# The final --reward_weights value still sets the maximum
+# grounding coefficient (0.2); the plugin must not multiply
+# by 0.2 internally.
 export GENRM_ZERO_RATIO=0.10
 export GENRM_FULL_RATIO=0.40
-export GENRM_SCHEDULE_LOG_STEPS=50
+
+# Hard trust gate for mixed groups:
+# trusted iff
+#   mean(raw GenRM | correct) - mean(raw GenRM | wrong)
+#       > GENRM_TRUST_MARGIN
+#
+# With margin 0.0, equality is NOT trusted.
+export GENRM_TRUST_MARGIN=0.0
+
+# Log group-level diagnostics every N optimizer steps.
+export GENRM_GROUP_LOG_STEPS=25
+
+# Current diagnostic implementation assumes each reward call
+# sees complete contiguous GRPO groups on one process.
+export GENRM_REQUIRE_SINGLE_PROCESS=1
 
 
 # ============================================================
@@ -189,7 +217,7 @@ echo
 
 
 # ============================================================
-# Verify GenRM prompt source and plugin registration
+# Verify GenRM prompt and trust-aware plugin registration
 # ============================================================
 
 PLUGIN="$PLUGIN" GENRM_PROMPT="$GENRM_PROMPT" python - <<'PY'
@@ -200,7 +228,7 @@ from pathlib import Path
 plugin_path = Path(os.environ["PLUGIN"]).resolve()
 
 spec = importlib.util.spec_from_file_location(
-    "sarcasm_grpo_reward_linear",
+    "sarcasm_grpo_reward_trust_linear_v2",
     plugin_path,
 )
 
@@ -214,14 +242,15 @@ assert module.GENRM_SYSTEM_PROMPT_PATH.resolve() == expected_path
 assert module.GENRM_SYSTEM_PROMPT == expected
 
 assert (
-    module.rm_plugins["sarcasm_grounding_linear"]
-    is module.SarcasmGroundingLinearRMPlugin
+    module.rm_plugins["sarcasm_grounding_trust_linear"]
+    is module.SarcasmGroundingTrustLinearRMPlugin
 )
+
 assert module.linear_grounding_factor(0, 841) == 0.0
 assert module.linear_grounding_factor(841, 841) == 1.0
 
 print(
-    "GenRM prompt, plugin registration, "
+    "GenRM prompt, trust-aware plugin registration, "
     "and schedule endpoints OK."
 )
 PY
@@ -230,7 +259,7 @@ echo
 
 
 # ============================================================
-# GRPO batch sanity checks
+# GRPO batch / group sanity checks
 # ============================================================
 
 TRAIN_GENERATION_BATCH=$((PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))
@@ -242,7 +271,15 @@ if [ $((TRAIN_GENERATION_BATCH % NUM_GENERATIONS)) -ne 0 ]; then
     exit 1
 fi
 
-echo "GRPO batch checks passed."
+if [ "$GENRM_NUM_GENERATIONS" -ne "$NUM_GENERATIONS" ]; then
+    echo "ERROR:" >&2
+    echo "GENRM_NUM_GENERATIONS must match NUM_GENERATIONS." >&2
+    echo "GENRM_NUM_GENERATIONS=$GENRM_NUM_GENERATIONS" >&2
+    echo "NUM_GENERATIONS=$NUM_GENERATIONS" >&2
+    exit 1
+fi
+
+echo "GRPO batch/group checks passed."
 echo
 
 
@@ -251,7 +288,7 @@ echo
 # ============================================================
 
 echo "============================================================"
-echo "MUStARD++ diverse_8-SFT -> GRPO + GenRM (linear schedule)"
+echo "MUStARD++ Greedy-SFT -> GRPO + trust-aware GenRM"
 echo "============================================================"
 echo
 echo "Policy model:               $MODEL"
@@ -277,12 +314,20 @@ echo
 echo "Reward:"
 echo "  accuracy                  1.0"
 echo "  format                    0.2"
-echo "  grounding                 0.2 * linear_schedule(step/max_steps)"
+echo "  grounding                 0.2 * linear_schedule * trust_gate"
 echo "  zero until progress       $GENRM_ZERO_RATIO"
 echo "  full from progress        $GENRM_FULL_RATIO"
 echo
-echo "Grounding:"
-echo "  correctness-gated"
+echo "Trust gate:"
+echo "  group size                $GENRM_NUM_GENERATIONS"
+echo "  trust margin              $GENRM_TRUST_MARGIN"
+echo "  all-wrong group           grounding OFF"
+echo "  mixed group               compare raw GenRM(correct) vs raw GenRM(wrong)"
+echo "  trusted mixed group       reward correct responses only"
+echo "  untrusted mixed group     grounding OFF"
+echo "  all-correct group         grounding OFF (diagnostic V2)"
+echo
+echo "Grounding scalar:"
 echo "  (text + audio + visual) / 3"
 echo "  integration excluded"
 echo
@@ -331,7 +376,7 @@ mkdir -p "$OUTPUT_DIR"
 
 
 # ============================================================
-# GRPO + GenRM with linear grounding schedule
+# GRPO + trust-aware GenRM with linear grounding schedule
 # ============================================================
 
 set +e
@@ -354,7 +399,7 @@ swift rlhf \
     \
     --reward_model "$GENRM_MODEL" \
     --reward_adapters "$GENRM_CKPT" \
-    --reward_model_plugin sarcasm_grounding_linear \
+    --reward_model_plugin sarcasm_grounding_trust_linear \
     \
     --reward_weights \
         1.0 \
@@ -415,7 +460,7 @@ set -e
 
 echo
 echo "============================================================"
-echo "MUStARD++ diverse_8-SFT -> GRPO + GenRM (linear schedule) finished"
+echo "MUStARD++ Greedy-SFT -> GRPO + trust-aware GenRM finished"
 echo "============================================================"
 echo "Exit status:      $STATUS"
 echo "End time:         $(date)"
