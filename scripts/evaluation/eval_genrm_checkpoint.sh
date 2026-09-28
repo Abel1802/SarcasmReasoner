@@ -5,38 +5,145 @@ set -o pipefail
 
 
 # ============================================================
-# MUStARD++ GenRM checkpoint evaluation
+# GenRM checkpoint evaluation
+#
+# Supports:
+#   - MUStARD++
+#   - MCSD
 #
 # Usage:
 #
-# bash scripts/evaluation/eval_genrm_checkpoint.sh
+#   MUStARD++:
+#     bash scripts/evaluation/eval_genrm_checkpoint.sh \
+#         --dataset mustard \
+#         --adapter results/mustard/genrm/qwen25_omni_3b/v1-20260926-001310/checkpoint-1000
 #
-# Rerun:
+#   MCSD:
+#     bash scripts/evaluation/eval_genrm_checkpoint.sh \
+#         --dataset mcsd \
+#         --adapter results/mcsd/genrm/qwen25_omni_3b/<run>/checkpoint-XXXX
 #
-# OVERWRITE=1 bash scripts/evaluation/eval_genrm_checkpoint.sh
+#   Rerun:
+#     OVERWRITE=1 bash scripts/evaluation/eval_genrm_checkpoint.sh \
+#         --dataset mcsd \
+#         --adapter results/mcsd/genrm/qwen25_omni_3b/<run>/checkpoint-XXXX
+#
+# Optional:
+#   --output-dir PATH
 # ============================================================
 
 
-# ============================================================
-# Model / checkpoint
-# ============================================================
+DATASET=""
+ADAPTER=""
+OUTPUT_DIR=""
 
 MODEL="Qwen/Qwen2.5-Omni-3B"
 
-ADAPTER="results/mustard/genrm/qwen25_omni_3b/v1-20260926-001310/checkpoint-1000"
-
-GOLD_DATA="data/mustard/processed/genrm/sft/genrm_valid.jsonl"
-
 SAFE_INFER="src/evaluation/swift_infer_safe_video.py"
-
 EVALUATOR="src/evaluation/evaluate_genrm_predictions.py"
+
+
+# ============================================================
+# Arguments
+# ============================================================
+
+while [[ $# -gt 0 ]]; do
+
+    case "$1" in
+
+        --dataset)
+            DATASET="$2"
+            shift 2
+            ;;
+
+        --adapter)
+            ADAPTER="$2"
+            shift 2
+            ;;
+
+        --output-dir)
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+
+        -h|--help)
+            echo "Usage:"
+            echo
+            echo "  bash scripts/evaluation/eval_genrm_checkpoint.sh \\"
+            echo "      --dataset {mustard|mcsd} \\"
+            echo "      --adapter PATH_TO_CHECKPOINT \\"
+            echo "      [--output-dir OUTPUT_DIR]"
+            echo
+            echo "Rerun existing evaluation:"
+            echo
+            echo "  OVERWRITE=1 bash scripts/evaluation/eval_genrm_checkpoint.sh ..."
+            exit 0
+            ;;
+
+        *)
+            echo "ERROR: unknown argument: $1"
+            exit 1
+            ;;
+    esac
+
+done
+
+
+# ============================================================
+# Dataset configuration
+# ============================================================
+
+if [[ -z "$DATASET" ]]; then
+    echo "ERROR: --dataset is required."
+    echo "Choose: mustard or mcsd"
+    exit 1
+fi
+
+case "$DATASET" in
+
+    mustard)
+
+        DATASET_NAME="MUStARD++"
+        GOLD_DATA="data/mustard/processed/genrm/sft/genrm_valid.jsonl"
+        EXPECTED_VALID_SIZE=1373
+        ;;
+
+    mcsd)
+
+        DATASET_NAME="MCSD"
+        GOLD_DATA="data/mcsd/processed/genrm/sft/genrm_valid.jsonl"
+        EXPECTED_VALID_SIZE=3192
+        ;;
+
+    *)
+
+        echo "ERROR: unsupported dataset: $DATASET"
+        echo "Choose: mustard or mcsd"
+        exit 1
+        ;;
+
+esac
+
+
+# ============================================================
+# Checkpoint
+# ============================================================
+
+if [[ -z "$ADAPTER" ]]; then
+    echo "ERROR: --adapter is required."
+    exit 1
+fi
+
+CHECKPOINT_NAME="$(basename "$ADAPTER")"
 
 
 # ============================================================
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mustard/genrm/evaluation/checkpoint-1000"
+if [[ -z "$OUTPUT_DIR" ]]; then
+    OUTPUT_DIR="results/${DATASET}/genrm/evaluation/${CHECKPOINT_NAME}"
+fi
 
 PRED_PATH="${OUTPUT_DIR}/valid_predictions.jsonl"
 METRICS_PATH="${OUTPUT_DIR}/valid_metrics.json"
@@ -50,11 +157,7 @@ mkdir -p "$OUTPUT_DIR"
 # ============================================================
 
 TEMPERATURE=0
-
-# Output is only a tiny JSON object:
-# {"text":1,"audio":0,"visual":1,"integration":1}
 MAX_NEW_TOKENS=64
-
 SEED=42
 
 
@@ -123,9 +226,11 @@ fi
 
 GOLD_COUNT=$(wc -l < "$GOLD_DATA")
 
-if [ "$GOLD_COUNT" -ne 1373 ]; then
-    echo "ERROR: expected 1373 validation examples."
-    echo "Actual: $GOLD_COUNT"
+if [ "$GOLD_COUNT" -ne "$EXPECTED_VALID_SIZE" ]; then
+    echo "ERROR: unexpected validation size."
+    echo "Dataset:  $DATASET"
+    echo "Expected: $EXPECTED_VALID_SIZE"
+    echo "Actual:   $GOLD_COUNT"
     exit 1
 fi
 
@@ -151,7 +256,10 @@ if [ -f "$PRED_PATH" ]; then
         echo "  $PRED_PATH"
         echo
         echo "To rerun:"
-        echo "  OVERWRITE=1 bash scripts/evaluation/eval_genrm_checkpoint.sh"
+        echo
+        echo "  OVERWRITE=1 bash scripts/evaluation/eval_genrm_checkpoint.sh \\"
+        echo "      --dataset $DATASET \\"
+        echo "      --adapter $ADAPTER"
         exit 1
 
     fi
@@ -164,8 +272,9 @@ fi
 
 echo
 echo "============================================================"
-echo "MUStARD++ GenRM validation"
+echo "${DATASET_NAME} GenRM validation"
 echo "============================================================"
+echo "Dataset:        $DATASET"
 echo "Model:          $MODEL"
 echo "Adapter:        $ADAPTER"
 echo "Gold data:      $GOLD_DATA"
@@ -174,6 +283,9 @@ echo "Temperature:    $TEMPERATURE"
 echo "Max new tokens: $MAX_NEW_TOKENS"
 echo "Output:         $OUTPUT_DIR"
 echo "============================================================"
+echo
+
+echo "FORCE_QWENVL_VIDEO_READER=${FORCE_QWENVL_VIDEO_READER:-not-set}"
 echo
 
 nvidia-smi
@@ -252,6 +364,8 @@ echo
 echo "============================================================"
 echo "GenRM validation finished"
 echo "============================================================"
+echo "Dataset:     $DATASET"
+echo "Checkpoint:  $CHECKPOINT_NAME"
 echo "Predictions: $PRED_PATH"
 echo "Metrics:     $METRICS_PATH"
 echo "Scored:      $SCORED_PATH"

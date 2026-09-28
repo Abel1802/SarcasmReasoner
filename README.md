@@ -64,8 +64,8 @@ bash scripts/evaluation/eval_all_checkpoints.sh \
 ```bash
 bash scripts/evaluation/eval_checkpoint.sh \
     mustard \
-    grporm_greedy \
-    results/mustard/grpo_rm/greedy/v0-20260926-125827/checkpoint-800 \
+    grporm_diverse_8_linear \
+    results/mustard/grpo_rm/diverse_8_linear/v1-20260927-213842/checkpoint-841 \
     test
 ```
 
@@ -129,6 +129,12 @@ python src/data/build_genrm_sft_data.py \
 
 ```bash
 bash configs/mustard/genrm/qwen25_omni_3b_1gpu.sh full
+```
+
+```bash
+bash scripts/evaluation/eval_genrm_checkpoint.sh \
+    --dataset mcsd \
+    --adapter results/mcsd/genrm/qwen25_omni_3b/v0-20260927-193102/checkpoint-1866
 ```
 
 
