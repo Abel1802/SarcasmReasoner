@@ -15,4 +15,4 @@ qwen-omni-utils==0.0.9
 scikit-learn==1.7.2
 numpy==1.26.4
 pandas==2.3.3
-ms-swift==4.0.0.dev0
+ms-swift==4.0.0
