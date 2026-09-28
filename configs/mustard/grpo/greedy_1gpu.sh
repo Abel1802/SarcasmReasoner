@@ -44,7 +44,7 @@ set -o pipefail
 
 MODEL="Qwen/Qwen2.5-Omni-7B"
 
-SFT_CKPT="results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105"
+SFT_CKPT="${SFT_CKPT:-results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105}"
 
 
 # ============================================================
@@ -65,7 +65,7 @@ PLUGIN="src/plugins/sarcasm_grpo_reward.py"
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mustard/grpo/greedy"
+OUTPUT_DIR="${OUTPUT_DIR:-results/mustard/grpo/greedy}"
 
 
 # ============================================================
@@ -126,7 +126,7 @@ TOP_P=0.95
 # Reproducibility
 # ------------------------------------------------------------
 
-SEED=42
+SEED="${SEED:-42}"
 
 
 # ============================================================

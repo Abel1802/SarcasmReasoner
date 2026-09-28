@@ -11,7 +11,7 @@ set -o pipefail
 #   Qwen/Qwen2.5-Omni-7B
 #
 # Initialization:
-#   Diverse-8-SFT LoRA checkpoint-560
+#   Diverse-8-SFT LoRA checkpoint-834
 #
 # Train:
 #   841 source instances
@@ -37,7 +37,7 @@ set -o pipefail
 
 MODEL="Qwen/Qwen2.5-Omni-7B"
 
-SFT_CKPT="results/mustard/sft/diverse_8/v0-20260924-103353/checkpoint-560"
+SFT_CKPT="${SFT_CKPT:-results/mustard/sft/diverse_8/v0-20260924-103353/checkpoint-834}"
 
 
 # ============================================================
@@ -58,7 +58,7 @@ PLUGIN="src/plugins/sarcasm_grpo_reward.py"
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mustard/grpo/diverse_8"
+OUTPUT_DIR="${OUTPUT_DIR:-results/mustard/grpo/diverse_8}"
 
 
 # ============================================================
@@ -115,7 +115,7 @@ TOP_P=0.95
 # Reproducibility
 # ------------------------------------------------------------
 
-SEED=42
+SEED="${SEED:-42}"
 
 
 # ============================================================
@@ -340,7 +340,7 @@ mkdir -p "$OUTPUT_DIR"
 #
 #   Qwen/Qwen2.5-Omni-7B
 #          +
-#   Diverse-8-SFT LoRA checkpoint-560
+#   Diverse-8-SFT LoRA checkpoint-834
 #
 # Reference policy:
 #
