@@ -5,13 +5,13 @@ set -o pipefail
 
 
 # ============================================================
-# MCSD Greedy-SFT -> GRPO
+# MUStARD++ Greedy-SFT -> GRPO
 #
 # Base model:
 #   Qwen/Qwen2.5-Omni-7B
 #
 # Initialization:
-#   Greedy-SFT LoRA checkpoint-228
+#   Greedy-SFT LoRA checkpoint-105
 #
 # IMPORTANT:
 #   - Do NOT merge the SFT adapter.
@@ -21,7 +21,10 @@ set -o pipefail
 #         reference policy:      --ref_adapters
 #
 # Train:
-#   1893 source instances
+#   841 source instances
+#
+# Validation:
+#   reserved for offline checkpoint evaluation
 #
 # GRPO:
 #   1 epoch
@@ -31,7 +34,7 @@ set -o pipefail
 #   accuracy + 0.2 * format
 #
 # Hardware:
-#   1 x H100
+#   4 x H100 on one node (DDP)
 # ============================================================
 
 
@@ -41,14 +44,14 @@ set -o pipefail
 
 MODEL="Qwen/Qwen2.5-Omni-7B"
 
-SFT_CKPT="results/mcsd/sft/greedy/v6-20260924-101848/checkpoint-228"
+SFT_CKPT="${SFT_CKPT:-results/mustard/sft/greedy/v0-20260923-221644/checkpoint-105}"
 
 
 # ============================================================
 # Data
 # ============================================================
 
-TRAIN_DATA="data/mcsd/processed/zero_shot_train.jsonl"
+TRAIN_DATA="data/mustard/processed/zero_shot_train.jsonl"
 
 
 # ============================================================
@@ -62,7 +65,7 @@ PLUGIN="src/plugins/sarcasm_grpo_reward.py"
 # Output
 # ============================================================
 
-OUTPUT_DIR="results/mcsd/grpo/greedy"
+OUTPUT_DIR="${OUTPUT_DIR:-results/mustard/grpo/greedy_4gpu}"
 
 
 # ============================================================
@@ -78,7 +81,9 @@ NUM_EPOCHS=1
 
 PER_DEVICE_TRAIN_BATCH_SIZE=1
 
-GRAD_ACC=8
+# Keep the 1-GPU effective batch: 4 GPUs x 1 completion/GPU x 2 = 8.
+# With G=8, each optimizer step corresponds to one source prompt.
+GRAD_ACC=2
 
 NUM_GENERATIONS=8
 
@@ -123,7 +128,7 @@ TOP_P=0.95
 # Reproducibility
 # ------------------------------------------------------------
 
-SEED=42
+SEED="${SEED:-42}"
 
 
 # ============================================================
@@ -145,6 +150,9 @@ export MAX_PIXELS=1003520
 export TOKENIZERS_PARALLELISM=false
 export PYTHONUNBUFFERED=1
 
+# ms-swift starts torchrun when NPROC_PER_NODE is set.
+export NPROC_PER_NODE=4
+
 
 # ============================================================
 # Required file / directory checks
@@ -155,6 +163,7 @@ if [ ! -f "$TRAIN_DATA" ]; then
     echo "  $TRAIN_DATA"
     exit 1
 fi
+
 
 
 if [ ! -f "$PLUGIN" ]; then
@@ -187,7 +196,7 @@ TRAIN_SIZE=$(wc -l < "$TRAIN_DATA")
 
 echo
 echo "============================================================"
-echo "MCSD Greedy-SFT -> GRPO"
+echo "MUStARD++ Greedy-SFT -> GRPO"
 echo "============================================================"
 echo
 
@@ -199,17 +208,17 @@ echo "Training data:              $TRAIN_DATA"
 echo "Training sources:           $TRAIN_SIZE"
 echo
 
-echo "GPU count:                  1"
+echo "GPU count:                  $NPROC_PER_NODE"
 echo
 
 echo "Train batch / GPU:          $PER_DEVICE_TRAIN_BATCH_SIZE"
 echo "Gradient accumulation:      $GRAD_ACC"
-echo "Generation batch size:      $((PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))"
+echo "Generation batch size:      $((NPROC_PER_NODE * PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))"
 echo "Train generations/source:   $NUM_GENERATIONS"
 echo
 
 echo "Epochs:                     $NUM_EPOCHS"
-echo "Expected optimizer steps:   $TRAIN_SIZE"
+echo "Expected optimizer steps:   ~$TRAIN_SIZE (distributed sampler may pad)"
 echo
 
 echo "Learning rate:              $LEARNING_RATE"
@@ -246,15 +255,16 @@ echo
 # Dataset size sanity checks
 # ============================================================
 
-EXPECTED_TRAIN_SIZE=1893
+EXPECTED_TRAIN_SIZE=841
 
 
 if [ "$TRAIN_SIZE" -ne "$EXPECTED_TRAIN_SIZE" ]; then
-    echo "ERROR: unexpected MCSD train size."
+    echo "ERROR: unexpected MUStARD++ train size."
     echo "Expected: $EXPECTED_TRAIN_SIZE"
     echo "Actual:   $TRAIN_SIZE"
     exit 1
 fi
+
 
 
 echo "Dataset size checks passed."
@@ -265,7 +275,7 @@ echo
 # GRPO batch sanity checks
 # ============================================================
 
-TRAIN_GENERATION_BATCH=$((PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))
+TRAIN_GENERATION_BATCH=$((NPROC_PER_NODE * PER_DEVICE_TRAIN_BATCH_SIZE * GRAD_ACC))
 
 
 if [ $((TRAIN_GENERATION_BATCH % NUM_GENERATIONS)) -ne 0 ]; then
@@ -277,6 +287,7 @@ if [ $((TRAIN_GENERATION_BATCH % NUM_GENERATIONS)) -ne 0 ]; then
     echo "Num generations:  $NUM_GENERATIONS"
     exit 1
 fi
+
 
 
 echo "GRPO batch checks passed."
@@ -316,8 +327,9 @@ print("torch:", torch.__version__)
 print("CUDA available:", torch.cuda.is_available())
 print("GPU count:", torch.cuda.device_count())
 
-if torch.cuda.is_available():
-    print("GPU:", torch.cuda.get_device_name(0))
+assert torch.cuda.device_count() == 4, "Expected exactly 4 visible GPUs"
+for index in range(torch.cuda.device_count()):
+    print(f"GPU {index}:", torch.cuda.get_device_name(index))
 PY
 
 echo
@@ -350,7 +362,7 @@ mkdir -p "$OUTPUT_DIR"
 #
 #   Qwen/Qwen2.5-Omni-7B
 #          +
-#   Greedy-SFT LoRA checkpoint-228
+#   Greedy-SFT LoRA checkpoint-105
 #
 #
 # Reference policy:
@@ -366,23 +378,25 @@ mkdir -p "$OUTPUT_DIR"
 #
 #
 # Train:
-#   1893 sources
+#   841 sources (distributed sampler may pad the final batch)
 #   G=8
 #   1 epoch
 #
-# Validation:
-#   disabled during training
+# Validation is performed offline on saved checkpoints.
 #
 # Checkpoints:
-#   every 200 optimizer steps
-#   retain up to 10 checkpoints
+#   ~200
+#   ~400
+#   ~600
+#   ~800
+#   final
 #
 # Test:
 #   NOT used during training/model selection.
 # ============================================================
 
 
-python src/training/swift_rlhf_safe_video.py \
+swift rlhf \
     --rlhf_type grpo \
     \
     --model "$MODEL" \
@@ -405,7 +419,6 @@ python src/training/swift_rlhf_safe_video.py \
     --freeze_aligner true \
     \
     --torch_dtype bfloat16 \
-    --attn_impl sdpa \
     \
     --num_train_epochs "$NUM_EPOCHS" \
     \
@@ -413,6 +426,7 @@ python src/training/swift_rlhf_safe_video.py \
     --gradient_accumulation_steps "$GRAD_ACC" \
     \
     --num_generations "$NUM_GENERATIONS" \
+    \
     \
     --temperature "$TEMPERATURE" \
     --top_p "$TOP_P" \
@@ -456,7 +470,7 @@ STATUS=$?
 
 echo
 echo "============================================================"
-echo "MCSD Greedy-SFT -> GRPO finished"
+echo "MUStARD++ Greedy-SFT -> GRPO finished"
 echo "============================================================"
 echo "Exit status:      $STATUS"
 echo "End time:         $(date)"

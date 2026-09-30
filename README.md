@@ -63,9 +63,9 @@ bash scripts/evaluation/eval_all_checkpoints.sh \
 #### Inference on test
 ```bash
 bash scripts/evaluation/eval_checkpoint.sh \
-    mustard \
-    grporm_diverse_8_linear \
-    results/mustard/grpo_rm/diverse_8_linear/v1-20260927-213842/checkpoint-841 \
+    mcsd \
+    grporm_diverse_8_v1 \
+    results/mcsd/grpo_rm/diverse_8/v0-20260929-153859/checkpoint-1200 \
     test
 ```
 
