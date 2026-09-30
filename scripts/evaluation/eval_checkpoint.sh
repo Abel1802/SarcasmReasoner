@@ -196,7 +196,7 @@ SAFE_INFER="src/evaluation/swift_infer_safe_video.py"
 
 TEMPERATURE=0
 
-MAX_NEW_TOKENS=4096
+MAX_NEW_TOKENS=1024
 
 SEED=42
 
@@ -221,7 +221,7 @@ VLLM_MAX_MODEL_LEN=16384
 #
 #   VLLM_MAX_NUM_SEQS=8 bash scripts/evaluation/eval_checkpoint.sh ...
 #
-VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-16}"
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-32}"
 
 VLLM_MAX_LORA_RANK=16
 
@@ -707,161 +707,6 @@ for SPLIT in "${SPLITS[@]}"; do
 
 
     # ========================================================
-    # Reproducibility manifest
-    #
-    # This does not affect inference. It records enough
-    # information to determine whether two evaluation runs
-    # really used the same:
-    #
-    #   checkpoint
-    #   data
-    #   evaluator
-    #   software
-    #   GPU environment
-    #   predictions
-    #
-    # ========================================================
-
-    MANIFEST_PATH="${OUTPUT_DIR}/${SPLIT}_reproducibility.txt"
-
-    {
-        echo "============================================================"
-        echo "Sarcasm evaluation reproducibility manifest"
-        echo "============================================================"
-
-        echo "timestamp=$(date --iso-8601=seconds)"
-        echo "hostname=$(hostname)"
-
-        echo
-        echo "[evaluation]"
-        echo "dataset=$DATASET"
-        echo "variant=$VARIANT"
-        echo "family=$FAMILY"
-        echo "method=$METHOD"
-        echo "checkpoint_step=$STEP"
-        echo "split=$SPLIT"
-
-        echo
-        echo "[model]"
-        echo "model=$MODEL"
-        echo "adapter=$(readlink -f "$ADAPTER")"
-
-        echo
-        echo "[generation]"
-        echo "temperature=$TEMPERATURE"
-        echo "max_new_tokens=$MAX_NEW_TOKENS"
-        echo "seed=$SEED"
-
-        echo
-        echo "[vllm]"
-        echo "tensor_parallel_size=$VLLM_TP"
-        echo "max_model_len=$VLLM_MAX_MODEL_LEN"
-        echo "max_num_seqs=$VLLM_MAX_NUM_SEQS"
-        echo "gpu_memory_utilization=$VLLM_GPU_MEMORY_UTILIZATION"
-        echo "max_lora_rank=$VLLM_MAX_LORA_RANK"
-
-        echo
-        echo "[environment]"
-        echo "PYTHONHASHSEED=$PYTHONHASHSEED"
-        echo "VLLM_ENABLE_V1_MULTIPROCESSING=$VLLM_ENABLE_V1_MULTIPROCESSING"
-        echo "VLLM_BATCH_INVARIANT=$VLLM_BATCH_INVARIANT"
-        echo "CUBLAS_WORKSPACE_CONFIG=$CUBLAS_WORKSPACE_CONFIG"
-        echo "OMP_NUM_THREADS=$OMP_NUM_THREADS"
-        echo "MKL_NUM_THREADS=$MKL_NUM_THREADS"
-        echo "NUMEXPR_NUM_THREADS=$NUMEXPR_NUM_THREADS"
-        echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-not-set}"
-
-        echo
-        echo "[software]"
-
-        python - <<'PYVERSIONS'
-import sys
-
-import decord
-import torch
-import swift
-import trl
-import vllm
-
-print(f"python={sys.version.split()[0]}")
-print(f"decord={decord.__version__}")
-print(f"torch={torch.__version__}")
-print(f"swift={swift.__version__}")
-print(f"trl={trl.__version__}")
-print(f"vllm={vllm.__version__}")
-print(f"cuda_runtime={torch.version.cuda}")
-PYVERSIONS
-
-        echo
-        echo "[gpu]"
-
-        nvidia-smi \
-            --query-gpu=name,driver_version \
-            --format=csv,noheader \
-            2>/dev/null || true
-
-        echo
-        echo "[git]"
-
-        echo -n "commit="
-        git rev-parse HEAD 2>/dev/null || echo "unknown"
-
-        echo "working_tree:"
-        git status --short 2>/dev/null || true
-
-        echo
-        echo "[sha256]"
-
-        echo -n "gold="
-        sha256sum "$GOLD_DATA" | awk '{print $1}'
-
-        echo -n "predictions="
-        sha256sum "$PRED_PATH" | awk '{print $1}'
-
-        echo -n "metrics="
-        sha256sum "$METRICS_PATH" | awk '{print $1}'
-
-        echo -n "scored="
-        sha256sum "$SCORED_PATH" | awk '{print $1}'
-
-        echo -n "eval_script="
-        sha256sum "$0" | awk '{print $1}'
-
-        echo -n "safe_infer="
-        sha256sum "$SAFE_INFER" | awk '{print $1}'
-
-        echo -n "metric_script="
-        sha256sum "$METRIC_SCRIPT" | awk '{print $1}'
-
-        echo -n "adapter_config="
-        sha256sum "$ADAPTER/adapter_config.json" | awk '{print $1}'
-
-        echo
-        echo "[adapter weights]"
-
-        find "$ADAPTER" \
-            -maxdepth 1 \
-            -type f \
-            \( -name "*.safetensors" -o -name "*.bin" \) \
-            -print0 \
-            | sort -z \
-            | while IFS= read -r -d '' WEIGHT_FILE; do
-                sha256sum "$WEIGHT_FILE"
-            done
-
-        echo
-        echo "============================================================"
-
-    } > "$MANIFEST_PATH"
-
-
-    echo
-    echo "Reproducibility manifest:"
-    echo "  $MANIFEST_PATH"
-    echo
-
-    echo "Prediction SHA256:"
-    sha256sum "$PRED_PATH"
     echo
 
 

@@ -55,17 +55,17 @@ bash configs/mustard/sft/diverse_8_1gpu.sh
 #### Inference on valid(step200, 400, 600,....)
 ```bash
 bash scripts/evaluation/eval_all_checkpoints.sh \
-    mustard \
+    mcsd \
     grpo_greedy \
-    results/mustard/grpo/greedy/v0-20260924-122118
+    results/mcsd/grpo/greedy/v0-20260928-210314
 ```
 
 #### Inference on test
 ```bash
 bash scripts/evaluation/eval_checkpoint.sh \
-    mcsd \
-    grporm_diverse_8_v1 \
-    results/mcsd/grpo_rm/diverse_8/v0-20260929-153859/checkpoint-1200 \
+    mustard \
+    grporm_diverse_8_refine \
+    results/mustard/grpo_rm/diverse_8_grpo841_genrm_refine_1epoch/v1-20260930-201843/checkpoint-200 \
     test
 ```
 

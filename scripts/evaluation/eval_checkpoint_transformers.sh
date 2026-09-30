@@ -151,7 +151,7 @@ METRIC_SCRIPT="src/evaluation/evaluate_sarcasm_predictions.py"
 # Greedy deterministic decoding.
 TEMPERATURE=0
 
-MAX_NEW_TOKENS=4096
+MAX_NEW_TOKENS=1024
 
 INFER_SEED=42
 
