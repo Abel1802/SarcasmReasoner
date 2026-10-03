@@ -38,3 +38,9 @@ ms-swift/
 /data/*/processed/train_chunks/
 data/mustard/processed/genrm/judge_pool_raw.jsonl
 genrm_smoke.log
+
+# Local Slurm scripts and judge artifacts
+/scripts/slurm/
+/omni_quality_judge_v1.zip
+/src/genrm_judge/local_backups/
+/src/genrm_judge/**/__pycache__/

@@ -1,0 +1,14 @@
+# Use a separate environment; do not replace the project's ms2 environment.
+# The MiniCPM-o-4.5 model card specifies Transformers 4.51.0.
+transformers==4.51.0
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+accelerate>=1.0
+minicpmo-utils[all]>=1.0.5
+numpy>=1.26,<3
+Pillow>=10
+einops>=0.8
+librosa>=0.10
+soundfile>=0.12
+sentencepiece>=0.2
